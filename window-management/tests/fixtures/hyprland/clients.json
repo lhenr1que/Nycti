@@ -1,0 +1,30 @@
+[
+  {
+    "stableId": "1a",
+    "address": "0xabc001",
+    "workspace": {
+      "id": 1,
+      "name": "fixture-main"
+    },
+    "floating": false,
+    "fullscreen": 0,
+    "title": "Synthetic tiled window",
+    "class": "fixture.application",
+    "pid": 41001,
+    "tags": ["fixture"]
+  },
+  {
+    "stableId": "2b",
+    "address": "0xabc002",
+    "workspace": {
+      "id": -7,
+      "name": "fixture-negative-id"
+    },
+    "floating": true,
+    "fullscreen": 2,
+    "title": "Synthetic floating window",
+    "class": "fixture.dialog",
+    "pid": 41002,
+    "tags": []
+  }
+]

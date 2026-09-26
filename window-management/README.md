@@ -19,5 +19,7 @@ cargo check
 cargo test
 ```
 
-The Hyprland backend and client protocol are not implemented yet.
+Read-only Hyprland JSON parsing and snapshot normalization are available, but
+the backend is not connected to the compositor yet and the client protocol is
+not implemented.
 An offline `FakeBackend` is available for backend-independent tests.

@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "name": "fixture-main",
+    "monitor": "FIXTURE-1",
+    "windows": 1,
+    "hasfullscreen": false
+  },
+  {
+    "id": -7,
+    "name": "fixture-negative-id",
+    "monitor": "FIXTURE-2",
+    "windows": 1,
+    "hasfullscreen": true
+  }
+]
