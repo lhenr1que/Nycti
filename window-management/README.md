@@ -20,3 +20,4 @@ cargo test
 ```
 
 The Hyprland backend and client protocol are not implemented yet.
+An offline `FakeBackend` is available for backend-independent tests.
