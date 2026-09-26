@@ -6,8 +6,9 @@ CLEA is a modular desktop environment for Hyprland. The architecture separates
 presentation, user configuration, window-management policy, and system
 capabilities so that no visual client becomes the authority for the desktop.
 
-This document describes component boundaries only. It does not select a backend
-language, IPC transport, configuration serialization format, or process model.
+This document describes project-wide component boundaries. Languages,
+transports, and process models are not universal CLEA requirements; individual
+components may select them through component-specific architecture decisions.
 
 ## Components
 
@@ -26,7 +27,8 @@ language, IPC transport, configuration serialization format, or process model.
 
 Shell, Settings, and CLI are clients. They request capabilities through
 documented APIs or IPC contracts rather than directly changing system state.
-The concrete transport remains undecided.
+Transports are selected per component and remain replaceable implementation
+boundaries rather than sources of system policy.
 
 Direct interaction with Hyprland belongs behind interfaces and a dedicated
 backend in the window-management boundary. QML may present state and express
@@ -47,6 +49,13 @@ Services / Window Management
 ```
 
 This diagram establishes responsibility, not a required runtime topology.
+
+For Window Management, [ADR 0005](adr/0005-window-management-runtime.md)
+selects an independent per-user `clea-windowd` process, initially implemented in
+Rust, with a versioned JSON Lines client protocol over a Unix domain socket.
+Direct Hyprland integration remains isolated behind an internal backend
+interface. These are Window Management decisions, not requirements for other
+CLEA components; see the ADR for rationale, consequences, and deferred details.
 
 ## State invariants
 
@@ -72,14 +81,19 @@ feature requires its own architectural review, documentation, and tests.
 
 ## Deliberately open decisions
 
-The following choices are intentionally deferred until requirements justify
-them:
+Unless narrowed by a component-specific ADR, the following choices remain
+deferred until requirements justify them:
 
-- backend implementation language;
-- IPC transport, including whether to use D-Bus, Unix sockets, or another
-  mechanism;
-- process and service topology;
-- configuration schema and serialization technologies;
+- implementation languages for components other than the Window Management
+  daemon;
+- IPC transports and process topology for services other than Window Management;
+- the Rust async runtime, serialization framework, complete protocol schema,
+  socket path, and persistence mechanism for `clea-windowd`;
+- startup and supervision mechanisms, including any systemd user service;
+- whether D-Bus will be added as a future Window Management adapter or used by
+  other services;
+- configuration schema and serialization technologies outside decisions already
+  scoped to a specific component;
 - packaging targets and distribution-specific integration;
 - the exact feature set to retain from Caelestia or selectively port from
   Midnight Shell.
