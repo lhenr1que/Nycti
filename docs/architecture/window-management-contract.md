@@ -96,6 +96,42 @@ The representation and lifecycle of `maximized` and future `minimized` state are
 not defined here. Clients must not infer maximize or minimize capabilities from
 their presence in this state vocabulary.
 
+## Placement and visibility
+
+Workspace mode controls window placement policy, not window visibility. Tiled
+and floating describe placement; minimized describes a separate, future
+visibility state. Changing or applying a workspace mode must not implicitly
+restore minimized windows.
+
+When a new ordinary window is created in a workspace, only that new window
+adopts the workspace's effective placement policy. Creating or opening it must
+not restore other minimized windows or otherwise change their minimized state.
+
+A minimized window may retain its underlying placement while it is not visible.
+For example, a minimized window in `windows` mode may remain logically floating.
+Restoring a minimized window is a separate explicit operation and is not a side
+effect of applying workspace placement policy.
+
+These rules preserve the architectural separation between placement and
+visibility without defining minimized-state representation, compositor
+mechanisms, taskbar behavior, or restore operations in this version.
+
+### Conceptual example
+
+Consider workspace 1 in `windows` mode:
+
+- Browser: minimized, with underlying floating placement.
+- Terminal: minimized, with underlying floating placement.
+
+When a new window opens:
+
+- the new window is visible and floating;
+- Browser remains minimized; and
+- Terminal remains minimized.
+
+This example illustrates state separation only. It does not establish a user
+interface, taskbar, or compositor implementation requirement.
+
 ## Workspace and window identity
 
 Each workspace has an opaque identity that clients can use with workspace mode
@@ -314,7 +350,8 @@ This version intentionally does not decide:
 - exact workspace and window identity encoding and lifetime;
 - recognition and treatment of exception candidates;
 - maximize behavior or the treatment of maximized windows during transitions;
-- minimize behavior;
+- minimize representation, mechanisms, and behavior beyond the placement and
+  visibility separation defined above;
 - placement after a fullscreen window later leaves fullscreen;
 - treatment of a fullscreen or maximized window moved between workspaces; and
 - policy for windows created or moved while a transition is in progress.
@@ -368,7 +405,19 @@ backend-independent test boundary:
 14. **Backend isolation:** the client-facing contract and its tests do not
     expose or require Hyprland-specific workspace identifiers, commands,
     addresses, or wire formats.
+15. **Windows Mode preserves minimized state:** applying `windows` mode does not
+    restore minimized windows.
+16. **Tiling Mode preserves minimized state:** applying `tiling` mode does not
+    restore minimized windows.
+17. **New-window placement is isolated:** opening a new ordinary window applies
+    the workspace's effective placement policy only to that new window.
+18. **Opening preserves existing visibility:** opening a new window does not
+    alter the minimized state of existing windows.
+19. **Explicit restore:** restoring a minimized window is an explicit operation
+    independent from applying or changing workspace mode.
 
-Tests for exception candidates, maximize, minimize, persistence, failure
-semantics, and the other deliberately open behavior are not acceptance criteria
-for this first version.
+Tests for exception candidates, maximize, the representation and mechanism of
+minimize, persistence, failure semantics, and the other deliberately open
+behavior are not acceptance criteria for this first version. The placement and
+visibility separation in criteria 15 through 19 is required without implying
+that minimize or restore operations are implemented by this version.
