@@ -41,6 +41,11 @@ private Hyprland identity lookup
 canonical Hyprland 0.56.2 socket1 dispatch
         |
         v
+exact-byte response classification
+        |
+        +-- non-ok -------> ActionFailed
+        |
+        v
 existing read-only snapshot pipeline
         |
         v
@@ -93,15 +98,57 @@ Each action request uses one short, synchronous connection:
 
 1. open a Unix stream to the request socket;
 2. write exactly one canonical `/dispatch` request;
-3. read its complete response;
+3. read its complete response as bytes until EOF;
 4. close the connection promptly; and
-5. if the response permits postcondition verification, obtain a fresh snapshot
+5. if and only if the response is exactly `b"ok"`, obtain a fresh snapshot
    through the existing read-only pipeline.
 
 The post-action snapshot continues to issue its existing read requests on their
 own short connections. The first action implementation does not batch the
 dispatch with those reads and does not introduce persistent connections,
 timeouts, retries, asynchronous I/O, or an async runtime.
+
+### Response framing
+
+The audited Hyprland 0.56.2 socket1 response is framed by connection close:
+
+```text
+request
+    |
+    v
+response bytes
+    |
+    v
+EOF
+```
+
+There is no newline framing, NUL terminator, or length prefix. The action
+transport must consume the complete response through EOF before classifying it.
+The exact successful `/dispatch` response is the two bytes:
+
+```text
+b"ok"
+hex: 6f 6b
+```
+
+No newline or NUL follows those bytes.
+
+### Byte-preserving action transport
+
+Action-response classification must operate on the complete response bytes,
+not on an interpreted error message. The adapter may conceptually provide a
+private primitive equivalent to:
+
+```text
+request_bytes(request: &[u8]) -> Result<Vec<u8>, BackendError>
+```
+
+The precise internal abstraction remains an implementation detail and must not
+expose a generic dispatcher to the core. The existing read-only pipeline may
+continue converting its responses to UTF-8 for JSON parsing. The action layer,
+however, must compare `response.as_slice() == b"ok"`; it must not require a
+non-success response to be valid UTF-8 before classifying it as
+`BackendError::ActionFailed`.
 
 ## Action identity
 
@@ -202,6 +249,11 @@ resolve WindowId -> NativeStableId
 send canonical /dispatch with action = "enable"
     |
     v
+require complete response == b"ok"
+    |
+    +-- any other response -> ActionFailed
+    |
+    v
 obtain a snapshot through the existing read-only pipeline
     |
     v
@@ -238,6 +290,11 @@ resolve WindowId -> NativeStableId
 send canonical /dispatch with action = "disable"
     |
     v
+require complete response == b"ok"
+    |
+    +-- any other response -> ActionFailed
+    |
+    v
 obtain a snapshot through the existing read-only pipeline
     |
     v
@@ -271,6 +328,11 @@ resolve WindowId -> NativeStableId
 send canonical /dispatch focus request
     |
     v
+require complete response == b"ok"
+    |
+    +-- any other response -> ActionFailed
+    |
+    v
 obtain a snapshot through the existing read-only pipeline
     |
     v
@@ -301,18 +363,28 @@ No request is sent to Hyprland in that case.
 
 An ID that was known can become stale because the window may disappear after a
 snapshot or between lookup and dispatch. Resolving a retained private mapping
-does not prove that the window is still present. Liveness is established only
-by the post-action snapshot.
+does not prove that the window is still present. After an exact `b"ok"`
+response, liveness is established by the post-action snapshot.
+
+For the first implementation, `UnknownWindow` arises only in these two cases:
+
+1. before dispatch, the CLEA `WindowId` is absent from the private mapping, so
+   the backend returns `UnknownWindow(window_id)` without sending a request; or
+2. after an exact `b"ok"` response, the postcondition snapshot no longer
+   contains the same `NativeStableId`, so the backend returns
+   `UnknownWindow(original_window_id)`.
+
+A non-`ok` dispatcher response is never converted directly to `UnknownWindow`,
+even if its diagnostic text says that a window was not found.
 
 ## Dispatcher response semantics
 
-A successful-looking `/dispatch` response is not sufficient to report CLEA
-action success. In the audited Hyprland 0.56.2 implementation,
-`hl.dsp.window.float` can report success when a stale selector matched no window
-and changed nothing. Therefore:
+A `/dispatch` response is apparently accepted only when its complete bytes are
+exactly `b"ok"`. Even that response is not sufficient to report CLEA action
+success. Therefore:
 
 ```text
-dispatch success != CLEA postcondition success
+response == b"ok" != CLEA postcondition success
 ```
 
 The first implementation distinguishes these categories:
@@ -320,20 +392,60 @@ The first implementation distinguishes these categories:
 | Condition | Backend result |
 |---|---|
 | Socket path, connect, write, or read failure | `BackendError::CompositorUnavailable` |
-| Explicit dispatcher error that unambiguously means the target no longer exists | `BackendError::UnknownWindow(original_window_id)` |
-| Other explicit dispatcher error | `BackendError::ActionFailed` |
-| Apparent dispatcher success | Continue to mandatory postcondition verification |
+| Complete response exactly equal to `b"ok"` | Continue to mandatory postcondition verification |
+| Any other complete response, including empty or non-UTF-8 bytes | `BackendError::ActionFailed` |
 
-The implementation must not initially depend on a complete catalog of
-Hyprland error strings. Exact parsing should be limited to response forms that
-are required and covered by implementation tests. Unknown explicit dispatcher
-errors map to `ActionFailed` rather than being treated as success.
+Hyprland's internal `SConfigError` codes and levels are not serialized as
+socket1 wire error codes. Text such as `error:`, Lua diagnostics, textual
+severity or code names, and `hl.focus: window not found` is human-readable
+diagnostic output only. The backend must not parse any of it, attach semantics
+to it, or maintain a catalog of Hyprland error messages.
+
+### Stale placement target
+
+In the audited implementation, `hl.dsp.window.float` with a stale selector can
+return exactly `b"ok"` without changing any window. Consequently, the exact
+success bytes mean only that the dispatcher apparently accepted the action.
+The postcondition snapshot remains mandatory. If that snapshot does not contain
+the target `NativeStableId`, the operation returns
+`UnknownWindow(original_window_id)`.
+
+### Stale focus target
+
+A stale focus request can return diagnostic text equivalent to:
+
+```text
+error: ... hl.focus: window not found
+```
+
+The backend does not interpret this text. Because the complete response is not
+exactly `b"ok"`, the operation returns `BackendError::ActionFailed`. It does not
+obtain a postcondition snapshot after that response.
+
+### Dispatcher and postcondition precedence
+
+Response handling is deterministic:
+
+```text
+non-ok complete response
+    -> ActionFailed
+    -> do not obtain a postcondition snapshot
+
+b"ok"
+    -> obtain the postcondition snapshot
+    -> snapshot and postcondition determine the result
+```
+
+Dispatcher failure and postcondition failure therefore cannot occur in the same
+operation. A non-`ok` response terminates action processing before observation;
+an exact `b"ok"` response delegates the final result to observation.
 
 ## Mandatory postcondition verification
 
-After every action whose dispatcher response permits continued verification,
-the backend obtains exactly one new read-only snapshot. There is no retry in the
-first implementation.
+After every action whose complete dispatcher response is exactly `b"ok"`, the
+backend obtains exactly one new read-only snapshot. It obtains no postcondition
+snapshot after any other complete response. There is no retry in the first
+implementation.
 
 The verification snapshot must use the existing stateful
 `HyprlandSnapshotSource` and its existing transport, wire parsing, correlation,
@@ -358,7 +470,8 @@ If the snapshot transport fails, the operation returns
 `CompositorUnavailable`. If parsing or normalization cannot produce a valid
 snapshot, the existing `ObservedStateUnavailable` or
 `InconsistentObservedState` classification is preserved. A successful snapshot
-that no longer contains the target stable ID yields `UnknownWindow`.
+that no longer contains the target stable ID yields `UnknownWindow`. These
+snapshot outcomes are considered only after an exact `b"ok"` response.
 
 ### Floating postcondition
 
@@ -391,7 +504,8 @@ After `focus_window`:
 5. otherwise return `ActionFailed`.
 
 The backend never reports success solely because Hyprland returned an apparent
-dispatcher success response.
+dispatcher success response. An exact `b"ok"` response is always followed by
+the relevant postcondition check, and no retry is performed.
 
 ## Races and non-atomicity
 
@@ -407,7 +521,14 @@ WindowId lookup
 dispatch
     |
     v
-post-action snapshot
+complete response
+    |
+    +-- non-ok -----------> ActionFailed
+    |
+    +-- exactly b"ok"
+            |
+            v
+    post-action snapshot
 ```
 
 The first implementation has no compositor lock, transaction, rollback, retry,
@@ -442,6 +563,18 @@ The backend must not:
 Postcondition verification confirms the result and detects staleness. It does
 not implement idempotence; the canonical Hyprland action already supplies that
 semantic.
+
+### Invalid action strings
+
+Hyprland 0.56.2 converts an unrecognized placement `action` string to toggle
+rather than rejecting it. A typo can therefore execute a toggle and can even
+produce the exact response `b"ok"`. The compositor response is not a safeguard
+against payload-construction errors.
+
+For that reason, `enable` and `disable` are private internal constants. The
+backend accepts no dynamic action string, and toggle remains prohibited. The
+postcondition snapshot detects an incorrect resulting state, but it does not
+make arbitrary action strings safe.
 
 ## Focus and workspace activation
 
@@ -498,15 +631,17 @@ Future automated tests must demonstrate at least that:
 5. no action payload uses `address:`;
 6. no action payload uses `toggle`;
 7. an unknown CLEA `WindowId` sends no compositor request;
-8. dispatcher success followed by observed `Floating` returns `Ok(())` for
+8. exact `b"ok"` followed by observed `Floating` returns `Ok(())` for
    `ensure_floating`;
-9. dispatcher success followed by observed `Tiled` returns `Ok(())` for
+9. exact `b"ok"` followed by observed `Tiled` returns `Ok(())` for
    `ensure_tiled`;
-10. dispatcher success followed by the target observed as focused returns
+10. exact `b"ok"` followed by the target observed as focused returns
     `Ok(())` for `focus_window`;
-11. a target that disappears after dispatch returns `UnknownWindow`;
-12. incorrect placement after dispatch returns `ActionFailed`;
-13. focus not obtained after dispatch returns `ActionFailed`;
+11. a target that disappears after an exact `b"ok"` response returns
+    `UnknownWindow`;
+12. incorrect placement after an exact `b"ok"` response returns
+    `ActionFailed`;
+13. focus not obtained after an exact `b"ok"` response returns `ActionFailed`;
 14. postcondition verification uses the existing stateful snapshot and
     normalization pipeline;
 15. no action toggles fullscreen;
@@ -514,9 +649,29 @@ Future automated tests must demonstrate at least that:
 17. no action executes `hyprctl`; and
 18. no action automatically falls back to `address:`.
 
-Tests should also cover transport failure and explicit dispatcher-error
-classification without requiring a complete parser for every possible
-Hyprland error message.
+Exact response classification and postcondition tests must additionally
+demonstrate that:
+
+1. exactly `b"ok"` permits postcondition verification;
+2. `b"ok\n"` returns `ActionFailed`;
+3. an empty response returns `ActionFailed`;
+4. `b"okay"` returns `ActionFailed`;
+5. a whitespace-only response returns `ActionFailed`;
+6. stale-focus diagnostic text returns `ActionFailed`;
+7. successfully received non-UTF-8 bytes return `ActionFailed`;
+8. only socket path, connect, write, or read failure returns
+   `CompositorUnavailable` at the action-transport stage;
+9. `b"ok"` followed by a snapshot without the target returns `UnknownWindow`;
+10. `b"ok"` followed by the correct observed state returns `Ok(())`;
+11. `b"ok"` followed by an incorrect observed state returns `ActionFailed`;
+    and
+12. a non-`ok` response does not trigger a postcondition snapshot.
+
+These tests use exact byte responses and must not introduce an error-message
+parser. The previously specified coverage for canonical payloads, stable IDs,
+the stateful snapshot pipeline, absence of `address:` fallback, absence of
+toggle, absence of `/eval`, absence of `hyprctl`, and fullscreen behavior
+remains required.
 
 ## Future opt-in live test
 
@@ -562,17 +717,21 @@ This specification is satisfied by a future implementation when:
    this document;
 2. action targets are derived only from private numeric `NativeStableId` values;
 3. unknown CLEA identities are rejected before transport;
-4. apparent dispatch success is followed by one snapshot-based postcondition
-   check;
-5. stale targets and unmet postconditions map to the specified backend errors;
-6. placement actions remain declarative and never use toggle;
-7. `address:` is not used as an automatic action fallback;
-8. action verification reuses the existing stateful snapshot source;
-9. focus-induced workspace activation remains visible but does not alter CLEA
-   workspace modes or membership;
-10. no fullscreen command is emitted;
-11. the implementation has no runtime dependency on `hyprctl`; and
-12. all mock-based requirements above pass without a running compositor.
+4. only a complete response exactly equal to `b"ok"` permits one snapshot-based
+   postcondition check;
+5. every other complete response maps directly to `ActionFailed` without a
+   postcondition snapshot;
+6. `UnknownWindow` arises only from failed pre-dispatch identity lookup or a
+   missing target in a post-`ok` snapshot;
+7. stale targets and unmet postconditions map to the specified backend errors;
+8. placement actions remain declarative and never use toggle;
+9. `address:` is not used as an automatic action fallback;
+10. action verification reuses the existing stateful snapshot source;
+11. focus-induced workspace activation remains visible but does not alter CLEA
+    workspace modes or membership;
+12. no fullscreen command is emitted;
+13. the implementation has no runtime dependency on `hyprctl`; and
+14. all mock-based requirements above pass without a running compositor.
 
 ## Remaining implementation questions
 
@@ -580,15 +739,12 @@ This specification intentionally leaves these details for implementation and
 tests without weakening the required action semantics:
 
 1. the smallest internal transport abstraction that supports both canonical
-   action requests and the existing read-only mocks;
-2. the exact validated wire forms for successful and failed `/dispatch`
-   responses;
-3. which explicit Hyprland error responses are sufficiently unambiguous to map
-   directly to `UnknownWindow` rather than `ActionFailed`;
-4. the internal map structure needed for efficient `WindowId -> NativeStableId`
-   lookup while preserving transactional snapshot updates; and
-5. error precedence when a dispatcher response and the subsequent observation
-   fail independently.
+   byte-preserving action requests and the existing read-only mocks; and
+2. the internal map structure needed for efficient `WindowId -> NativeStableId`
+   lookup while preserving transactional snapshot updates.
 
-None of these questions permits `/eval`, toggle semantics, retries, address
-fallback, duplicated snapshot parsing, or exposure of native identities.
+The exact wire success form, non-`ok` classification, `UnknownWindow` policy,
+and dispatcher/postcondition precedence are resolved requirements rather than
+open implementation questions. None of the remaining questions permits
+`/eval`, toggle semantics, retries, address fallback, duplicated snapshot
+parsing, or exposure of native identities.
