@@ -4,6 +4,9 @@ mod snapshot;
 mod transport;
 mod wire;
 
+#[cfg(test)]
+mod live_tests;
+
 use super::BackendError;
 use snapshot::{HyprlandSnapshot, HyprlandSnapshotSource};
 use transport::HyprlandTransport;
