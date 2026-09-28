@@ -3,7 +3,10 @@
 use std::collections::HashMap;
 
 use super::{ObservedWindowState, WorkspaceMode, WorkspaceModeResolution, plan_window_placement};
-use crate::backend::{BackendError, WindowBackend, WorkspaceId, apply_window_placement_action};
+use crate::backend::{
+    BackendError, WindowBackend, WindowObservation, WorkspaceId, WorkspaceObservation,
+    apply_window_placement_action,
+};
 
 /// Owns workspace modes and applies their placement policy through a backend.
 pub struct WindowManager<B: WindowBackend> {
@@ -48,6 +51,16 @@ impl<B: WindowBackend> WindowManager<B> {
     /// Clears an explicit mode without applying placement actions.
     pub fn clear_workspace_mode(&mut self, workspace_id: WorkspaceId) {
         self.explicit_modes.remove(&workspace_id);
+    }
+
+    /// Returns a normalized snapshot of workspaces through the owned backend.
+    pub fn list_workspaces(&mut self) -> Result<Vec<WorkspaceObservation>, BackendError> {
+        self.backend.list_workspaces()
+    }
+
+    /// Returns a normalized snapshot of windows through the owned backend.
+    pub fn list_windows(&mut self) -> Result<Vec<WindowObservation>, BackendError> {
+        self.backend.list_windows()
     }
 
     /// Applies the workspace's effective placement mode to its current windows.
@@ -203,6 +216,53 @@ mod tests {
         manager.clear_workspace_mode(workspace);
 
         assert!(manager.backend.recorded_actions().is_empty());
+    }
+
+    #[test]
+    fn workspace_observations_delegate_without_changing_policy() {
+        let mut backend = FakeBackend::new();
+        let workspace = backend.add_workspace(true);
+        let mut manager = WindowManager::new(backend, WorkspaceMode::Tiling);
+        manager.set_workspace_mode(workspace, WorkspaceMode::Windows);
+
+        let first = manager
+            .list_workspaces()
+            .expect("fake workspace listing should succeed");
+        let second = manager
+            .list_workspaces()
+            .expect("fake workspace listing should remain available");
+
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].id(), workspace);
+        assert!(first[0].is_present());
+        assert_eq!(
+            manager.workspace_mode(workspace).explicit_mode(),
+            Some(WorkspaceMode::Windows)
+        );
+    }
+
+    #[test]
+    fn window_observations_delegate_without_changing_state() {
+        let mut backend = FakeBackend::new();
+        let workspace = backend.add_workspace(true);
+        let window = backend
+            .add_window(workspace, WindowPlacement::Floating, false, true)
+            .expect("known workspace should accept a window");
+        let mut manager = WindowManager::new(backend, WorkspaceMode::Tiling);
+
+        let first = manager
+            .list_windows()
+            .expect("fake window listing should succeed");
+        let second = manager
+            .list_windows()
+            .expect("fake window listing should remain available");
+
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].id(), window);
+        assert_eq!(first[0].placement(), WindowPlacement::Floating);
+        assert!(first[0].is_focused());
     }
 
     #[test]

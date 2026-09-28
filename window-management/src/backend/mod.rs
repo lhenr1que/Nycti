@@ -10,7 +10,7 @@ use crate::core::{WindowPlacement, WindowPlacementAction};
 pub struct WorkspaceId(u64);
 
 /// An opaque window identity assigned by a backend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WindowId(u64);
 
 /// A normalized observation of a compositor workspace.

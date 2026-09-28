@@ -3,3 +3,4 @@
 pub mod backend;
 pub mod core;
 pub mod protocol;
+pub mod service;
