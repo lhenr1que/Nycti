@@ -21,6 +21,7 @@ pub struct FakeBackend {
     workspaces: Vec<WorkspaceObservation>,
     windows: Vec<WindowObservation>,
     recorded_actions: Vec<RecordedBackendAction>,
+    action_failure: Option<(WindowId, BackendError)>,
 }
 
 impl FakeBackend {
@@ -32,6 +33,7 @@ impl FakeBackend {
             workspaces: Vec::new(),
             windows: Vec::new(),
             recorded_actions: Vec::new(),
+            action_failure: None,
         }
     }
 
@@ -82,6 +84,20 @@ impl FakeBackend {
         &self.recorded_actions
     }
 
+    /// Configures actions for one known window to return the supplied error.
+    pub fn fail_actions_for(&mut self, window_id: WindowId, error: BackendError) {
+        self.action_failure = Some((window_id, error));
+    }
+
+    fn prepare_action(&mut self, window_id: WindowId) -> Result<(), BackendError> {
+        self.window_mut(window_id)?;
+
+        match self.action_failure {
+            Some((failed_window, error)) if failed_window == window_id => Err(error),
+            _ => Ok(()),
+        }
+    }
+
     fn window_mut(&mut self, window_id: WindowId) -> Result<&mut WindowObservation, BackendError> {
         self.windows
             .iter_mut()
@@ -100,6 +116,7 @@ impl WindowBackend for FakeBackend {
     }
 
     fn ensure_tiled(&mut self, window_id: WindowId) -> Result<(), BackendError> {
+        self.prepare_action(window_id)?;
         self.window_mut(window_id)?.placement = WindowPlacement::Tiled;
         self.recorded_actions
             .push(RecordedBackendAction::EnsureTiled(window_id));
@@ -107,6 +124,7 @@ impl WindowBackend for FakeBackend {
     }
 
     fn ensure_floating(&mut self, window_id: WindowId) -> Result<(), BackendError> {
+        self.prepare_action(window_id)?;
         self.window_mut(window_id)?.placement = WindowPlacement::Floating;
         self.recorded_actions
             .push(RecordedBackendAction::EnsureFloating(window_id));
@@ -114,9 +132,7 @@ impl WindowBackend for FakeBackend {
     }
 
     fn focus_window(&mut self, window_id: WindowId) -> Result<(), BackendError> {
-        if !self.windows.iter().any(|window| window.id == window_id) {
-            return Err(BackendError::UnknownWindow(window_id));
-        }
+        self.prepare_action(window_id)?;
 
         for window in &mut self.windows {
             window.focused = window.id == window_id;

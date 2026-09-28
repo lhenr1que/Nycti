@@ -1,5 +1,9 @@
 //! Compositor-independent Window Management policy.
 
+mod manager;
+
+pub use manager::WindowManager;
+
 /// A workspace's window-management mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WorkspaceMode {

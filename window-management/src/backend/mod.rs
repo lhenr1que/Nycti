@@ -6,7 +6,7 @@ pub mod hyprland;
 use crate::core::{WindowPlacement, WindowPlacementAction};
 
 /// An opaque workspace identity assigned by a backend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WorkspaceId(u64);
 
 /// An opaque window identity assigned by a backend.
