@@ -1,8 +1,7 @@
 //! Backend boundary between Window Management policy and compositors.
 
 pub mod fake;
-#[cfg_attr(not(test), allow(dead_code))]
-mod hyprland;
+pub mod hyprland;
 
 use crate::core::{WindowPlacement, WindowPlacementAction};
 

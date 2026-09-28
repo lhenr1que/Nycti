@@ -1,6 +1,7 @@
 //! Stateful normalization from Hyprland wire responses to CLEA observations.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 use super::super::{BackendError, WindowId, WindowObservation, WorkspaceId, WorkspaceObservation};
 use super::wire;
@@ -10,13 +11,19 @@ use crate::core::WindowPlacement;
 struct NativeWorkspaceId(i64);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct NativeStableId(u64);
+pub(super) struct NativeStableId(u64);
 
 impl NativeStableId {
     fn parse(value: &str) -> Result<Self, BackendError> {
         u64::from_str_radix(value, 16)
             .map(Self)
             .map_err(|_| BackendError::InconsistentObservedState)
+    }
+}
+
+impl fmt::LowerHex for NativeStableId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::LowerHex::fmt(&self.0, formatter)
     }
 }
 
@@ -73,6 +80,12 @@ impl HyprlandSnapshotSource {
         let snapshot = staged.build_snapshot(workspaces, clients, focused_index)?;
         *self = staged;
         Ok(snapshot)
+    }
+
+    pub(super) fn native_stable_id(&self, window_id: WindowId) -> Option<NativeStableId> {
+        self.windows_by_stable_id
+            .iter()
+            .find_map(|(stable_id, identity)| (identity.id == window_id).then_some(*stable_id))
     }
 
     fn build_snapshot(
@@ -243,7 +256,7 @@ fn correlate_active_window(
 #[cfg(test)]
 mod tests {
     use super::{HyprlandAddress, HyprlandSnapshotSource, NativeStableId};
-    use crate::backend::BackendError;
+    use crate::backend::{BackendError, WindowId};
     use crate::core::WindowPlacement;
 
     const WORKSPACES_FIXTURE: &str =
@@ -419,6 +432,19 @@ mod tests {
                 .windows_by_stable_id
                 .contains_key(&NativeStableId(0x1a))
         );
+    }
+
+    #[test]
+    fn reverse_lookup_uses_the_existing_stable_id_mapping() {
+        let mut source = HyprlandSnapshotSource::new();
+        let snapshot = one_client_snapshot(&mut source, "1a", "0x100", 1, false, 0)
+            .expect("window identity should normalize");
+
+        assert_eq!(
+            source.native_stable_id(snapshot.windows[0].id()),
+            Some(NativeStableId(0x1a))
+        );
+        assert_eq!(source.native_stable_id(WindowId(u64::MAX)), None);
     }
 
     #[test]

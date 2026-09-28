@@ -1,14 +1,14 @@
 //! Opt-in smoke tests against a live Hyprland session.
 
-use super::{HyprlandReadOnlySource, HyprlandTransport};
+use super::{HyprlandBackend, HyprlandTransport};
 
 #[test]
 #[ignore = "requires a live Hyprland session"]
 fn live_read_only_snapshot_smoke_test() {
     let transport = HyprlandTransport::from_env()
         .expect("failed to derive the live Hyprland request transport from the environment");
-    let mut source = HyprlandReadOnlySource::new(transport);
-    let snapshot = source
+    let mut backend = HyprlandBackend::new(transport);
+    let snapshot = backend
         .snapshot()
         .expect("failed to produce a normalized snapshot from the live Hyprland session");
 

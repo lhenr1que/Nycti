@@ -1,4 +1,4 @@
-//! Synchronous read-only transport for Hyprland's request socket.
+//! Synchronous byte-preserving transport for Hyprland's request socket.
 
 use std::env;
 use std::ffi::OsStr;
@@ -45,6 +45,11 @@ impl HyprlandTransport {
     }
 
     fn request(&self, request: &[u8]) -> Result<String, BackendError> {
+        let response = self.request_bytes(request)?;
+        String::from_utf8(response).map_err(|_| BackendError::ObservedStateUnavailable)
+    }
+
+    pub(super) fn request_bytes(&self, request: &[u8]) -> Result<Vec<u8>, BackendError> {
         let mut stream = UnixStream::connect(&self.socket_path)
             .map_err(|_| BackendError::CompositorUnavailable)?;
         stream
@@ -56,7 +61,7 @@ impl HyprlandTransport {
             .read_to_end(&mut response)
             .map_err(|_| BackendError::CompositorUnavailable)?;
 
-        String::from_utf8(response).map_err(|_| BackendError::ObservedStateUnavailable)
+        Ok(response)
     }
 }
 
