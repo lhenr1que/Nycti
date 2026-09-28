@@ -4,6 +4,7 @@ mod parser;
 mod types;
 
 pub use parser::parse_request;
+pub(crate) use parser::parse_request_bytes;
 pub(crate) use types::{
     AppliedWorkspaceModeResult, ModeResult, ProtocolResult, StatusResult, WindowResult,
     WindowsResult, WorkspaceModeResult, WorkspaceResult, WorkspacesResult,

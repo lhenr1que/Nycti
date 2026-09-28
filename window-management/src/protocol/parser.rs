@@ -79,6 +79,12 @@ pub fn parse_request(line: &str) -> Result<ProtocolRequest, ProtocolResponse> {
     Ok(ProtocolRequest { id, method })
 }
 
+pub(crate) fn parse_request_bytes(line: &[u8]) -> Result<ProtocolRequest, ProtocolResponse> {
+    let line = std::str::from_utf8(line)
+        .map_err(|_| invalid_request(None, "request line must contain valid UTF-8 JSON text"))?;
+    parse_request(line)
+}
+
 fn valid_correlation_id(value: Option<&Value>) -> Option<&str> {
     value.and_then(Value::as_str).filter(|id| !id.is_empty())
 }

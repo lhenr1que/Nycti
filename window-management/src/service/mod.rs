@@ -8,7 +8,7 @@ use crate::protocol::{
     AppliedWorkspaceModeResult, ErrorCode, ModeResult, PROTOCOL_VERSION, ProtocolError,
     ProtocolMode, ProtocolRequest, ProtocolResponse, ProtocolResult, RequestMethod, StatusResult,
     WindowResult, WindowsResult, WorkspaceModeResult, WorkspaceResult, WorkspacesResult,
-    parse_request, serialize_response,
+    parse_request, parse_request_bytes, serialize_response,
 };
 
 /// Handles validated protocol operations through one owned `WindowManager`.
@@ -47,6 +47,17 @@ impl<B: WindowBackend> WindowManagementService<B> {
             Err(response) => response,
         };
         serialize_response(&response)
+    }
+
+    pub(crate) fn handle_json_bytes(&mut self, line: &[u8]) -> String {
+        let response = match parse_request_bytes(line) {
+            Ok(request) => self.handle_request(request),
+            Err(response) => response,
+        };
+
+        serialize_response(&response).expect(
+            "closed protocol response types contain only infallibly serializable JSON values",
+        )
     }
 
     fn dispatch(&mut self, method: RequestMethod) -> Result<ProtocolResult, ProtocolError> {
