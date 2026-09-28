@@ -82,8 +82,11 @@ impl<B: WindowBackend> WindowManager<B> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::WindowManager;
     use crate::backend::fake::{FakeBackend, RecordedBackendAction};
+    use crate::backend::hyprland::HyprlandBackend;
     use crate::backend::{BackendError, WindowBackend, WindowId};
     use crate::core::{WindowPlacement, WorkspaceMode};
 
@@ -525,5 +528,105 @@ mod tests {
                 .iter()
                 .all(|action| { !matches!(action, RecordedBackendAction::Focus(_)) })
         );
+    }
+
+    #[test]
+    #[ignore = "mutates a live Hyprland workspace"]
+    fn live_window_manager_windows_and_tiling_smoke_test() {
+        assert!(
+            matches!(env::var("CLEA_LIVE_MANAGER_TEST").as_deref(), Ok("1")),
+            "live WindowManager smoke test is disabled; set CLEA_LIVE_MANAGER_TEST=1 and invoke this ignored test explicitly"
+        );
+
+        let mut backend = HyprlandBackend::from_env()
+            .expect("failed to create the live Hyprland backend from the environment");
+        let initial_windows = backend
+            .list_windows()
+            .expect("failed to obtain the initial live window snapshot");
+        let focused_windows = initial_windows
+            .iter()
+            .filter(|window| window.is_focused())
+            .copied()
+            .collect::<Vec<_>>();
+
+        let target_window = match focused_windows.as_slice() {
+            [target_window] => *target_window,
+            _ => panic!("live WindowManager smoke test requires exactly one focused window"),
+        };
+        let target_window_id = target_window.id();
+        let target_workspace_id = target_window.workspace_id();
+        let workspace_windows = initial_windows
+            .iter()
+            .filter(|window| window.workspace_id() == target_workspace_id)
+            .collect::<Vec<_>>();
+
+        let only_workspace_window = match workspace_windows.as_slice() {
+            [window] => *window,
+            _ => panic!(
+                "live WindowManager smoke test requires the focused workspace to contain exactly one window"
+            ),
+        };
+        assert_eq!(
+            only_workspace_window.id(),
+            target_window_id,
+            "the focused workspace's only window must be the focused target"
+        );
+        assert!(
+            target_window.is_focused(),
+            "selected live target must be focused"
+        );
+        assert!(
+            !target_window.is_fullscreen(),
+            "live WindowManager smoke test requires a focused non-fullscreen window; no action was executed"
+        );
+        assert_eq!(
+            target_window.placement(),
+            WindowPlacement::Tiled,
+            "live WindowManager smoke test requires the test window to be initially tiled; floating geometry restoration is not yet modeled"
+        );
+
+        let mut manager = WindowManager::new(backend, WorkspaceMode::Tiling);
+        assert_eq!(
+            manager.workspace_mode(target_workspace_id).effective_mode(),
+            WorkspaceMode::Tiling
+        );
+
+        manager.set_workspace_mode(target_workspace_id, WorkspaceMode::Windows);
+        assert_eq!(
+            manager.workspace_mode(target_workspace_id).effective_mode(),
+            WorkspaceMode::Windows
+        );
+
+        let windows_apply_result = manager.apply_workspace_mode(target_workspace_id);
+
+        manager.set_workspace_mode(target_workspace_id, WorkspaceMode::Tiling);
+        let restore_result = manager.apply_workspace_mode(target_workspace_id);
+
+        if let Err(restoration_error) = restore_result {
+            panic!(
+                "CRITICAL: Tiling restoration failed; Windows Mode application result: {windows_apply_result:?}; restoration error: {restoration_error:?}"
+            );
+        }
+
+        assert_eq!(
+            manager.workspace_mode(target_workspace_id).effective_mode(),
+            WorkspaceMode::Tiling
+        );
+
+        manager.clear_workspace_mode(target_workspace_id);
+        let final_mode = manager.workspace_mode(target_workspace_id);
+        assert_eq!(final_mode.explicit_mode(), None);
+        assert_eq!(final_mode.effective_mode(), WorkspaceMode::Tiling);
+
+        if let Err(windows_error) = windows_apply_result {
+            panic!(
+                "Windows Mode application failed after Tiling restoration completed: {windows_error:?}"
+            );
+        }
+
+        println!("CLEA WindowManager live smoke test:");
+        println!("initial mode: Tiling");
+        println!("temporary mode: Windows");
+        println!("restored mode: Tiling");
     }
 }
