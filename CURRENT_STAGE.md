@@ -22,6 +22,13 @@ After the parser precedence fix, package tests passed with **175 passed,
 0 failed, 3 ignored**; formatting verification and all-target Clippy also passed
 without warnings. The implementation baseline above records the earlier run.
 
+After the handler-based transport refactor, package tests
+passed with **183 passed, 0 failed, 3 ignored** (eight new transport tests);
+`cargo check`, formatting verification, and all-target Clippy also passed
+without warnings. In this run the suite passed inside the sandbox, so the
+earlier socket-creation failures did not recur; they remain a possible
+environment-dependent outcome. The ignored tests were not run.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -38,7 +45,11 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
 - Protocol v1: typed validation, nine client methods, responses, error mapping,
   and opaque external identity tokens through `WindowManagementService`.
 - JSON Lines transport: sequential requests, LF framing, continued processing
-  after protocol errors, and separate transport failures.
+  after protocol errors, and separate transport failures. The single framing
+  implementation is `serve_connection_with_handler`, which calls a handler once
+  per complete line and returns `ServeError<E>` (`Transport` or `Handler`);
+  `serve_connection` is a wrapper with an unchanged signature. The Unix runtime
+  adapter does not use the handler variant yet.
 - `FakeBackend`: offline observations, declarative actions, action recording,
   and failure simulation.
 - `HyprlandBackend`: native synchronous IPC reads, snapshot normalization,
