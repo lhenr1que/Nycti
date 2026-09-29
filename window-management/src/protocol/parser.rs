@@ -26,12 +26,12 @@ pub fn parse_request(line: &str) -> Result<ProtocolRequest, ProtocolResponse> {
         return Err(invalid_request(Some(id), "version must be a JSON integer"));
     }
 
-    let method = object
-        .get("method")
-        .and_then(Value::as_str)
-        .filter(|value| !value.is_empty());
-    let method = method
-        .ok_or_else(|| invalid_request(Some(id.clone()), "method must be a non-empty string"))?;
+    if !object.contains_key("method") {
+        return Err(invalid_request(
+            Some(id),
+            "method must be a non-empty string",
+        ));
+    }
 
     if !object.contains_key("params") {
         return Err(invalid_request(Some(id), "params is required"));
@@ -44,6 +44,13 @@ pub fn parse_request(line: &str) -> Result<ProtocolRequest, ProtocolResponse> {
             "protocol version is not supported",
         ));
     }
+
+    let method = object
+        .get("method")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty());
+    let method = method
+        .ok_or_else(|| invalid_request(Some(id.clone()), "method must be a non-empty string"))?;
 
     if object.len() != ENVELOPE_FIELDS.len()
         || object
@@ -309,6 +316,38 @@ mod tests {
             ErrorCode::UnsupportedVersion,
             Some("request-1"),
         );
+    }
+
+    #[test]
+    fn unsupported_version_precedes_invalid_method_type_or_value() {
+        for method in ["null", "42", "false", "{}", "[]", "\"\""] {
+            assert_error(
+                &format!(r#"{{"version":2,"id":"r","method":{method},"params":{{}}}}"#),
+                ErrorCode::UnsupportedVersion,
+                Some("r"),
+            );
+        }
+    }
+
+    #[test]
+    fn unsupported_version_still_requires_structural_fields() {
+        for line in [
+            r#"{"version":2,"id":"r","params":{}}"#,
+            r#"{"version":2,"id":"r","method":null}"#,
+        ] {
+            assert_error(line, ErrorCode::InvalidRequest, Some("r"));
+        }
+    }
+
+    #[test]
+    fn version_one_still_rejects_invalid_method_type_or_value() {
+        for method in ["null", "42", "false", "{}", "[]", "\"\""] {
+            assert_error(
+                &format!(r#"{{"version":1,"id":"r","method":{method},"params":{{}}}}"#),
+                ErrorCode::InvalidRequest,
+                Some("r"),
+            );
+        }
     }
 
     #[test]

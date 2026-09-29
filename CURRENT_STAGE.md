@@ -18,6 +18,10 @@
 - The Rust toolchain is not pinned in the repository. `Cargo.lock` records
   dependency resolution; it does not pin Rust or Cargo.
 
+After the parser precedence fix, package tests passed with **175 passed,
+0 failed, 3 ignored**; formatting verification and all-target Clippy also passed
+without warnings. The implementation baseline above records the earlier run.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -67,8 +71,6 @@ shutdown before wiring the executable.
 
 ## Known risks and limitations
 
-- Parser validation precedence differs from protocol v1 for unsupported
-  versions with a present but invalid `method`. The bug remains uncorrected.
 - Snapshot normalization requires a correlatable active window; the no-active
   window case remains unresolved.
 - Hyprland reads and actions are synchronous, without timeouts or retries.
