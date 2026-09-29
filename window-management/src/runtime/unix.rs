@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 
 use crate::backend::WindowBackend;
 use crate::service::WindowManagementService;
-use crate::transport::{TransportError, serve_connection};
+use crate::transport::{
+    ServeError, TransportError, serve_connection, serve_connection_with_handler,
+};
 
 const RUNTIME_ENVIRONMENT_VARIABLE: &str = "XDG_RUNTIME_DIR";
 const CLEA_RUNTIME_DIRECTORY: &str = "clea";
@@ -87,6 +89,31 @@ impl fmt::Display for UnixConnectionError {
 }
 
 impl std::error::Error for UnixConnectionError {}
+
+/// Preserves the distinction between Unix preparation, framed transport, and
+/// request-handler failures for a connection served through a handler.
+///
+/// `Handler` carries the caller's own error type. It is deliberately not part
+/// of [`UnixRuntimeError`], which never contains handler, protocol, or backend
+/// errors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnixServeError<E> {
+    Runtime(UnixRuntimeError),
+    Transport(TransportError),
+    Handler(E),
+}
+
+impl<E: fmt::Display> fmt::Display for UnixServeError<E> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Runtime(error) => error.fmt(formatter),
+            Self::Transport(error) => error.fmt(formatter),
+            Self::Handler(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl<E: fmt::Debug + fmt::Display> std::error::Error for UnixServeError<E> {}
 
 fn resolve_runtime_root_from_env() -> Result<ValidatedRuntimeRoot, UnixRuntimeError> {
     resolve_runtime_root_value(env::var_os(RUNTIME_ENVIRONMENT_VARIABLE))
@@ -199,16 +226,52 @@ impl Drop for UnixRuntimeListener {
     }
 }
 
+/// Prepares an accepted stream as the `BufRead` plus `Write` pair the generic
+/// framing layer requires. This is the only place a stream is cloned and
+/// buffered for serving.
+fn prepare_stream(
+    stream: UnixStream,
+) -> Result<(BufReader<UnixStream>, UnixStream), UnixRuntimeError> {
+    let reader_stream = stream
+        .try_clone()
+        .map_err(|_| UnixRuntimeError::ConnectionPreparationFailed)?;
+    Ok((BufReader::new(reader_stream), stream))
+}
+
 /// Serves one accepted Unix stream through the existing generic framing layer.
 pub fn serve_unix_connection<B: WindowBackend>(
     stream: UnixStream,
     service: &mut WindowManagementService<B>,
 ) -> Result<(), UnixConnectionError> {
-    let reader_stream = stream
-        .try_clone()
-        .map_err(|_| UnixConnectionError::Runtime(UnixRuntimeError::ConnectionPreparationFailed))?;
-    let reader = BufReader::new(reader_stream);
-    serve_connection(reader, stream, service).map_err(UnixConnectionError::Transport)
+    let (reader, writer) = prepare_stream(stream).map_err(UnixConnectionError::Runtime)?;
+    serve_connection(reader, writer, service).map_err(UnixConnectionError::Transport)
+}
+
+/// Serves one accepted Unix stream by calling `handler` once per complete
+/// request line through the existing generic framing layer.
+///
+/// The handler receives the exact request bytes without the terminating LF and
+/// returns exactly one complete response line terminated by LF, which is
+/// written unchanged; the LF is a documented convention that is not validated.
+///
+/// If the handler fails, no response is written for that request, serving
+/// stops, and `UnixServeError::Handler` is returned. Dropping the stream closes
+/// the connection, so the client observes only EOF and no protocol response.
+/// The handler failure is never converted into a `UnixRuntimeError` or a
+/// protocol response. If the stream cannot be prepared, the handler is not
+/// called.
+pub fn serve_unix_connection_with_handler<H, E>(
+    stream: UnixStream,
+    handler: H,
+) -> Result<(), UnixServeError<E>>
+where
+    H: FnMut(&[u8]) -> Result<String, E>,
+{
+    let (reader, writer) = prepare_stream(stream).map_err(UnixServeError::Runtime)?;
+    serve_connection_with_handler(reader, writer, handler).map_err(|error| match error {
+        ServeError::Transport(error) => UnixServeError::Transport(error),
+        ServeError::Handler(error) => UnixServeError::Handler(error),
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -956,5 +1019,156 @@ mod tests {
         assert_eq!(responses.len(), 2);
         assert_eq!(responses[0]["id"], "first");
         assert_eq!(responses[1]["id"], "second");
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    struct HandlerFailure;
+
+    fn length_response(line: &[u8]) -> Result<String, HandlerFailure> {
+        Ok(format!("{}\n", line.len()))
+    }
+
+    /// Serves one real connection through the handler variant and returns the
+    /// serve result with every byte the client received until EOF.
+    fn handler_exchange<H>(
+        listener: &UnixRuntimeListener,
+        input: &[u8],
+        handler: H,
+    ) -> (Result<(), UnixServeError<HandlerFailure>>, Vec<u8>)
+    where
+        H: FnMut(&[u8]) -> Result<String, HandlerFailure>,
+    {
+        let mut client =
+            UnixStream::connect(listener.socket_path()).expect("test client should connect");
+        client
+            .write_all(input)
+            .expect("test request should be written");
+        client
+            .shutdown(Shutdown::Write)
+            .expect("test client write half should close");
+
+        let server = listener.accept().expect("server should accept client");
+        // The stream is moved in and dropped on return, closing the connection.
+        let result = serve_unix_connection_with_handler(server, handler);
+
+        let mut output = Vec::new();
+        client
+            .read_to_end(&mut output)
+            .expect("test response should be read");
+        (result, output)
+    }
+
+    #[test]
+    fn handler_receives_exact_bytes_without_lf_over_real_socket() {
+        let area = TestDirectory::new();
+        let root = valid_root(&area, "runtime");
+        let listener = UnixRuntimeListener::bind(&root).expect("listener should bind");
+        let mut received: Vec<Vec<u8>> = Vec::new();
+
+        let (result, output) = handler_exchange(&listener, b"first\n\n\xff\r\nlast\n", |line| {
+            received.push(line.to_vec());
+            length_response(line)
+        });
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(
+            received,
+            vec![
+                b"first".to_vec(),
+                b"".to_vec(),
+                b"\xff\r".to_vec(),
+                b"last".to_vec()
+            ]
+        );
+        assert_eq!(output, b"5\n0\n2\n4\n");
+    }
+
+    #[test]
+    fn handler_is_not_called_for_clean_eof_or_final_line_without_lf() {
+        let area = TestDirectory::new();
+        let root = valid_root(&area, "runtime");
+        let listener = UnixRuntimeListener::bind(&root).expect("listener should bind");
+        let mut calls = 0;
+
+        let (result, output) = handler_exchange(&listener, b"", |line| {
+            calls += 1;
+            length_response(line)
+        });
+        assert_eq!(result, Ok(()));
+        assert_eq!(calls, 0);
+        assert!(output.is_empty());
+
+        let (result, output) = handler_exchange(&listener, b"incomplete", |line| {
+            calls += 1;
+            length_response(line)
+        });
+        assert_eq!(result, Ok(()));
+        assert_eq!(calls, 0);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn handler_error_writes_no_response_and_client_observes_only_eof() {
+        let area = TestDirectory::new();
+        let root = valid_root(&area, "runtime");
+        let listener = UnixRuntimeListener::bind(&root).expect("listener should bind");
+        let mut calls = 0;
+
+        let (result, output) = handler_exchange(&listener, b"one\ntwo\n", |_| {
+            calls += 1;
+            Err(HandlerFailure)
+        });
+
+        assert_eq!(result, Err(UnixServeError::Handler(HandlerFailure)));
+        assert_eq!(calls, 1);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn handler_error_keeps_earlier_responses_and_stops_serving() {
+        let area = TestDirectory::new();
+        let root = valid_root(&area, "runtime");
+        let listener = UnixRuntimeListener::bind(&root).expect("listener should bind");
+        let mut calls = 0;
+
+        let (result, output) = handler_exchange(&listener, b"ok\nfail\nnever\n", |line| {
+            calls += 1;
+            if line == b"fail" {
+                Err(HandlerFailure)
+            } else {
+                length_response(line)
+            }
+        });
+
+        assert_eq!(result, Err(UnixServeError::Handler(HandlerFailure)));
+        assert_eq!(calls, 2);
+        assert_eq!(output, b"2\n");
+    }
+
+    #[test]
+    fn handler_error_is_distinct_from_runtime_and_transport_errors() {
+        let area = TestDirectory::new();
+        let root = valid_root(&area, "runtime");
+        let listener = UnixRuntimeListener::bind(&root).expect("listener should bind");
+
+        let (result, _) = handler_exchange(&listener, b"x\n", |_| Err(HandlerFailure));
+
+        assert!(matches!(
+            result,
+            Err(UnixServeError::Handler(HandlerFailure))
+        ));
+        assert_ne!(
+            result,
+            Err(UnixServeError::Runtime(
+                UnixRuntimeError::ConnectionPreparationFailed
+            ))
+        );
+        for transport_error in [
+            TransportError::ReadFailed,
+            TransportError::WriteFailed,
+            TransportError::FlushFailed,
+        ] {
+            assert_ne!(result, Err(UnixServeError::Transport(transport_error)));
+        }
     }
 }
