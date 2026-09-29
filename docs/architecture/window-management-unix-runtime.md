@@ -395,21 +395,19 @@ accept, and stream-preparation failures. Protocol and backend failures continue
 to become protocol responses through the existing service. These error domains
 must not be merged.
 
-## Concurrency and service authority remain deferred
+## Concurrency and service authority are specified separately
 
-This specification deliberately does not select:
-
-- one thread per connection;
-- a thread pool;
-- Tokio or another async runtime;
-- `select`, `poll`, or an event loop;
-- `Arc<Mutex<WindowManagementService<_>>>`;
-- a central request queue; or
-- scheduling and fairness between clients.
+This specification covers the Unix adapter, not daemon coordination.
+[ADR 0006](adr/0006-window-management-daemon-execution.md) now selects one
+accept/lifecycle role, one synchronous worker per connection, and one exclusive
+service authority thread, using standard-library channels with a central
+zero-capacity rendezvous channel. No exact fairness between clients is promised.
+The coordinator remains unimplemented; the existing adapter still serves one
+accepted stream through the generic framing layer.
 
 `WindowManagementService` contains mutable authoritative state, including the
 default mode, explicit workspace modes, external identity registry, and owned
-backend state through `WindowManager`. A future multi-client design must
+backend state through `WindowManager`. The multi-client implementation must
 preserve one logical authority. It must not create one service per connection
 or request.
 
@@ -525,8 +523,7 @@ This specification does not decide or implement:
 - a CLI;
 - D-Bus;
 - Tokio or another async runtime;
-- threads or multi-client concurrency;
-- client scheduling;
+- implementation of the multi-client coordinator selected by ADR 0006;
 - persistence;
 - Hyprland event sockets or `socket2` integration;
 - reconciliation or event processing;
@@ -567,6 +564,6 @@ A future Unix runtime adapter conforms to this specification when it:
 17. does not interpret protocol methods or duplicate framing;
 18. preserves one logical `WindowManagementService` authority rather than
     constructing one per request or connection;
-19. leaves concurrency and multi-client scheduling explicitly undecided; and
+19. leaves daemon coordination outside the adapter, under ADR 0006; and
 20. validates the adapter independently before turning `main.rs` into a full
     daemon.

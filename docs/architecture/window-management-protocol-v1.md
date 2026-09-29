@@ -809,7 +809,8 @@ real compositor or expose backend-specific fields.
 Protocol v1 does not decide or provide:
 
 - Tokio or another async runtime;
-- a threading or multi-connection concurrency model;
+- implementation of the threading and multi-connection model selected by
+  [ADR 0006](adr/0006-window-management-daemon-execution.md);
 - a systemd user unit;
 - socket activation;
 - D-Bus;
@@ -828,16 +829,21 @@ Protocol v1 does not decide or provide:
 
 ## Remaining questions
 
-The following require later specifications or implementation decisions:
+Rust protocol types, the service handler, and in-memory external token
+allocation are implemented. The
+[Unix runtime specification](window-management-unix-runtime.md) resolves stale
+socket cleanup and permission modes, and
+[ADR 0006](adr/0006-window-management-daemon-execution.md) selects threading,
+single-authority ownership, and multi-client ordering. Its coordinator is not
+implemented yet.
 
-1. the concrete Rust protocol and service-handler types;
-2. the allocator and retention lifecycle for external opaque ID tokens;
-3. stale socket cleanup and exact Unix filesystem permission modes;
-4. the daemon's threading and multi-client scheduling model;
-5. operational resource limits;
-6. daemon startup and supervision;
-7. persistence of default and explicit modes; and
-8. future event-driven reconciliation and notification protocols.
+The following remain open:
+
+1. retirement of historical external opaque ID tokens;
+2. operational resource limits;
+3. production daemon startup, signal handling, and supervision;
+4. persistence of default and explicit modes; and
+5. future event-driven reconciliation and notification protocols.
 
 None of these questions permits moving policy into clients, exposing backend
 commands, or weakening the explicit separation between mode setters and

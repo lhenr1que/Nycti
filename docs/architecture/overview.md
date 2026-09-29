@@ -57,6 +57,18 @@ Direct Hyprland integration remains isolated behind an internal backend
 interface. These are Window Management decisions, not requirements for other
 CLEA components; see the ADR for rationale, consequences, and deferred details.
 
+[Protocol v1](window-management-protocol-v1.md) specifies the client schema and
+`$XDG_RUNTIME_DIR/clea/window-management.sock`. The
+[Unix runtime specification](window-management-unix-runtime.md) defines socket
+permissions and lifecycle. The implementation uses `serde` and `serde_json`.
+[ADR 0006](adr/0006-window-management-daemon-execution.md) selects standard-library
+threads and channels: one accept/lifecycle role, a worker per connection, and
+one exclusive service authority. That coordinator is not implemented yet.
+
+See [CURRENT_STAGE.md](../../CURRENT_STAGE.md) for implemented components and the
+validated baseline; these runtime decisions do not imply a functional daemon
+or integrated Shell/Settings clients already exist.
+
 ## State invariants
 
 Window-management behavior must preserve user-visible state across ordinary
@@ -81,14 +93,14 @@ feature requires its own architectural review, documentation, and tests.
 
 ## Deliberately open decisions
 
-Unless narrowed by a component-specific ADR, the following choices remain
-deferred until requirements justify them:
+Unless narrowed by a component-specific ADR or specification, the following
+choices remain deferred until requirements justify them:
 
 - implementation languages for components other than the Window Management
   daemon;
 - IPC transports and process topology for services other than Window Management;
-- the Rust async runtime, serialization framework, complete protocol schema,
-  socket path, and persistence mechanism for `clea-windowd`;
+- persistence and operational resource limits for `clea-windowd`;
+- event-driven reconciliation and notification contracts for Window Management;
 - startup and supervision mechanisms, including any systemd user service;
 - whether D-Bus will be added as a future Window Management adapter or used by
   other services;
