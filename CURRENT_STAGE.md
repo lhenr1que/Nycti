@@ -29,6 +29,12 @@ without warnings. In this run the suite passed inside the sandbox, so the
 earlier socket-creation failures did not recur; they remain a possible
 environment-dependent outcome. The ignored tests were not run.
 
+After adding the handler variant of the Unix connection helper, package tests
+passed with **188 passed, 0 failed, 3 ignored** (five new Unix runtime tests);
+`cargo check`, formatting verification, and all-target Clippy also passed
+without warnings. The suite again passed inside the sandbox, and the ignored
+tests were not run.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -49,7 +55,8 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   implementation is `serve_connection_with_handler`, which calls a handler once
   per complete line and returns `ServeError<E>` (`Transport` or `Handler`);
   `serve_connection` is a wrapper with an unchanged signature. The Unix runtime
-  adapter does not use the handler variant yet.
+  adapter exposes the same handler model through
+  `serve_unix_connection_with_handler`; no coordinator uses it yet.
 - `FakeBackend`: offline observations, declarative actions, action recording,
   and failure simulation.
 - `HyprlandBackend`: native synchronous IPC reads, snapshot normalization,
@@ -57,7 +64,12 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   The documented compatibility target is Hyprland **0.56.2** only.
 - Unix runtime: socket binding, permissions, active-listener detection,
   narrowly scoped stale-socket recovery, one-connection adaptation, and
-  identity-checked cleanup.
+  identity-checked cleanup. `serve_unix_connection_with_handler` serves one
+  accepted stream through a request handler and returns
+  `UnixServeError<E>` (`Runtime`, `Transport`, or `Handler`), which keeps the
+  handler's error out of `UnixRuntimeError`. A handler error closes the
+  connection without a response, so the client observes only EOF.
+  `serve_unix_connection` keeps its signature and behavior.
 
 ## Not implemented
 

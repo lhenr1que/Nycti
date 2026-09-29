@@ -395,6 +395,23 @@ accept, and stream-preparation failures. Protocol and backend failures continue
 to become protocol responses through the existing service. These error domains
 must not be merged.
 
+The adapter also provides a handler-capable variant,
+`serve_unix_connection_with_handler`, which prepares the same accepted-stream
+arrangement and supplies it to the transport's handler-based framing primitive,
+`serve_connection_with_handler`, instead of to a `WindowManagementService`. The
+handler receives each complete request line without its LF and returns one
+complete response line terminated by LF, which is written unchanged; that LF is
+a documented convention and is not validated. Stream preparation is implemented
+once and shared by `serve_unix_connection` and the handler variant. The adapter
+does not call the service, manager, or backend on the handler path, and
+`serve_unix_connection` keeps its existing signature and behavior.
+
+If the handler fails, no response is written for that request, serving stops,
+and the failure is returned as `UnixServeError::Handler`. Dropping the stream
+closes the connection, so the client observes only EOF and no protocol response.
+A handler failure is not converted into a protocol error or a `UnixRuntimeError`.
+If the stream cannot be prepared, the handler is not called.
+
 ## Concurrency and service authority are specified separately
 
 This specification covers the Unix adapter, not daemon coordination.
@@ -448,6 +465,14 @@ error source for process diagnostics. It must not expose unnecessary filesystem
 details to protocol clients, and these failures are never protocol responses.
 `UnixRuntimeError` must not contain `BackendError`, `ProtocolError`, or
 Hyprland-specific errors.
+
+A connection served through the handler variant reports failures with
+`UnixServeError<E>`, which has three flat variants: `Runtime(UnixRuntimeError)`
+for stream preparation, `Transport(TransportError)` for read, write, and flush
+failures, and `Handler(E)` for the caller's own handler error. The handler error
+does not belong to `UnixRuntimeError`, which remains free of handler, protocol,
+and backend errors. `UnixConnectionError`, returned by `serve_unix_connection`,
+is unchanged.
 
 ## Testability
 
