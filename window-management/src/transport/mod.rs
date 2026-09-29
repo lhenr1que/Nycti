@@ -1,5 +1,6 @@
 //! Synchronous JSON Lines framing over generic byte streams.
 
+use std::convert::Infallible;
 use std::fmt;
 use std::io::{BufRead, Write};
 
@@ -27,20 +28,54 @@ impl fmt::Display for TransportError {
 
 impl std::error::Error for TransportError {}
 
-/// Serves sequential protocol requests over one generic readable/writable pair.
+/// A failure while serving one framed connection through a request handler.
 ///
-/// Framing is byte-oriented and removes only the terminating LF byte. A final
-/// sequence of bytes without LF is considered incomplete and is discarded at
-/// clean EOF without a response. No line-size limit is imposed at this layer.
-pub fn serve_connection<R, W, B>(
+/// The two domains stay separate: `Transport` is a framing or stream failure of
+/// this connection, and `Handler` is the handler's own failure, which is never
+/// converted into a protocol response.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ServeError<E> {
+    Transport(TransportError),
+    Handler(E),
+}
+
+impl<E: fmt::Display> fmt::Display for ServeError<E> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Transport(error) => error.fmt(formatter),
+            Self::Handler(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl<E: fmt::Debug + fmt::Display> std::error::Error for ServeError<E> {}
+
+/// Serves sequential requests over one generic readable/writable pair by
+/// invoking `handler` once per complete request line.
+///
+/// This is the only JSON Lines framing implementation. Framing is
+/// byte-oriented and removes only the terminating LF byte. A final sequence of
+/// bytes without LF is considered incomplete and is discarded at clean EOF
+/// without calling the handler or writing a response. No line-size limit is
+/// imposed at this layer.
+///
+/// The handler receives the exact request bytes without the LF and does not
+/// interpret framing. On success it returns exactly one complete response line
+/// terminated by LF. The transport writes those bytes unchanged and does not
+/// add, remove, or validate the terminator.
+///
+/// If the handler fails, no response is written, serving stops, and
+/// `ServeError::Handler` is returned. Read, write, and flush failures are
+/// reported as `ServeError::Transport`.
+pub fn serve_connection_with_handler<R, W, H, E>(
     mut reader: R,
     mut writer: W,
-    service: &mut WindowManagementService<B>,
-) -> Result<(), TransportError>
+    mut handler: H,
+) -> Result<(), ServeError<E>>
 where
     R: BufRead,
     W: Write,
-    B: WindowBackend,
+    H: FnMut(&[u8]) -> Result<String, E>,
 {
     let mut request_line = Vec::new();
 
@@ -48,7 +83,7 @@ where
         request_line.clear();
         let bytes_read = reader
             .read_until(b'\n', &mut request_line)
-            .map_err(|_| TransportError::ReadFailed)?;
+            .map_err(|_| ServeError::Transport(TransportError::ReadFailed))?;
 
         if bytes_read == 0 {
             return Ok(());
@@ -59,12 +94,37 @@ where
         }
         request_line.pop();
 
-        let response_line = service.handle_json_bytes(&request_line);
+        let response_line = handler(&request_line).map_err(ServeError::Handler)?;
         writer
             .write_all(response_line.as_bytes())
-            .map_err(|_| TransportError::WriteFailed)?;
-        writer.flush().map_err(|_| TransportError::FlushFailed)?;
+            .map_err(|_| ServeError::Transport(TransportError::WriteFailed))?;
+        writer
+            .flush()
+            .map_err(|_| ServeError::Transport(TransportError::FlushFailed))?;
     }
+}
+
+/// Serves sequential protocol requests over one generic readable/writable pair.
+///
+/// Wrapper over [`serve_connection_with_handler`] with a handler that never
+/// fails; framing behavior is defined there.
+pub fn serve_connection<R, W, B>(
+    reader: R,
+    writer: W,
+    service: &mut WindowManagementService<B>,
+) -> Result<(), TransportError>
+where
+    R: BufRead,
+    W: Write,
+    B: WindowBackend,
+{
+    serve_connection_with_handler(reader, writer, |request_line| {
+        Ok::<_, Infallible>(service.handle_json_bytes(request_line))
+    })
+    .map_err(|error| match error {
+        ServeError::Transport(error) => error,
+        ServeError::Handler(never) => match never {},
+    })
 }
 
 #[cfg(test)]
@@ -385,5 +445,152 @@ mod tests {
 
         assert_eq!(result, Err(TransportError::FlushFailed));
         assert!(writer.bytes.ends_with(b"\n"));
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct HandlerFailure;
+
+    fn echo_length(line: &[u8]) -> Result<String, HandlerFailure> {
+        Ok(format!("{}\n", line.len()))
+    }
+
+    #[test]
+    fn handler_is_called_once_per_complete_line_with_exact_bytes_without_lf() {
+        let input: &[u8] = b"first\n\n\xff\r\nlast\n";
+        let mut received: Vec<Vec<u8>> = Vec::new();
+        let mut output = Vec::new();
+
+        let result = serve_connection_with_handler(Cursor::new(input), &mut output, |line| {
+            received.push(line.to_vec());
+            echo_length(line)
+        });
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(
+            received,
+            vec![
+                b"first".to_vec(),
+                b"".to_vec(),
+                b"\xff\r".to_vec(),
+                b"last".to_vec()
+            ]
+        );
+        assert_eq!(output, b"5\n0\n2\n4\n");
+    }
+
+    #[test]
+    fn handler_response_bytes_are_written_unchanged() {
+        let mut output = Vec::new();
+
+        let result = serve_connection_with_handler(Cursor::new(b"a\nb\n"), &mut output, |line| {
+            Ok::<_, HandlerFailure>(if line == b"a" {
+                "no-terminator".to_owned()
+            } else {
+                "done\n".to_owned()
+            })
+        });
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(output, b"no-terminatordone\n");
+    }
+
+    #[test]
+    fn handler_is_not_called_at_clean_eof() {
+        let mut calls = 0;
+        let mut output = Vec::new();
+
+        let result = serve_connection_with_handler(Cursor::new(b""), &mut output, |line| {
+            calls += 1;
+            echo_length(line)
+        });
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(calls, 0);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn handler_is_not_called_for_final_line_without_lf() {
+        let mut received: Vec<Vec<u8>> = Vec::new();
+        let mut output = Vec::new();
+
+        let result = serve_connection_with_handler(
+            Cursor::new(b"complete\nincomplete"),
+            &mut output,
+            |line| {
+                received.push(line.to_vec());
+                echo_length(line)
+            },
+        );
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(received, vec![b"complete".to_vec()]);
+        assert_eq!(output, b"8\n");
+    }
+
+    #[test]
+    fn handler_error_writes_no_response_and_returns_handler_variant() {
+        let mut calls = 0;
+        let mut output = Vec::new();
+
+        let result = serve_connection_with_handler(Cursor::new(b"one\ntwo\n"), &mut output, |_| {
+            calls += 1;
+            Err::<String, _>(HandlerFailure)
+        });
+
+        assert_eq!(result, Err(ServeError::Handler(HandlerFailure)));
+        assert_eq!(calls, 1);
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn handler_error_keeps_earlier_responses_and_stops_serving() {
+        let mut calls = 0;
+        let mut output = Vec::new();
+
+        let result =
+            serve_connection_with_handler(Cursor::new(b"ok\nfail\nnever\n"), &mut output, |line| {
+                calls += 1;
+                if line == b"fail" {
+                    Err(HandlerFailure)
+                } else {
+                    echo_length(line)
+                }
+            });
+
+        assert_eq!(result, Err(ServeError::Handler(HandlerFailure)));
+        assert_eq!(calls, 2);
+        assert_eq!(output, b"2\n");
+    }
+
+    #[test]
+    fn handler_error_is_distinct_from_transport_errors() {
+        let mut output = Vec::new();
+
+        let result = serve_connection_with_handler(Cursor::new(b"x\n"), &mut output, |_| {
+            Err::<String, _>(HandlerFailure)
+        });
+
+        for transport_error in [
+            TransportError::ReadFailed,
+            TransportError::WriteFailed,
+            TransportError::FlushFailed,
+        ] {
+            assert_ne!(result, Err(ServeError::Transport(transport_error)));
+        }
+        assert!(matches!(result, Err(ServeError::Handler(HandlerFailure))));
+    }
+
+    #[test]
+    fn transport_failures_remain_transport_variants_with_a_handler() {
+        let read =
+            serve_connection_with_handler(BufReader::new(FailingReader), Vec::new(), echo_length);
+        let write = serve_connection_with_handler(Cursor::new(b"x\n"), FailingWriter, echo_length);
+
+        assert_eq!(read, Err(ServeError::Transport(TransportError::ReadFailed)));
+        assert_eq!(
+            write,
+            Err(ServeError::Transport(TransportError::WriteFailed))
+        );
     }
 }
