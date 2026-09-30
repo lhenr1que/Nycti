@@ -5,5 +5,7 @@
 //! The accept loop, connection workers, and coordinator are not implemented.
 
 mod authority;
+#[cfg(test)]
+mod test_support;
 
 pub use authority::{Authority, AuthorityClient, AuthorityError, AuthorityLifecycleError};
