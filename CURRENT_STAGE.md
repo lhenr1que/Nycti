@@ -51,6 +51,16 @@ The suite passed inside the sandbox, and the ignored tests were not run. The
 worker tests use `UnixStream::pair()` and `FakeBackend`; they do not bind a
 listener or need a real Hyprland session.
 
+After adding the coordinator and the authority exit hook, package tests passed
+with **225 passed, 0 failed, 3 ignored** (three new authority hook tests and ten
+new coordinator tests; the thirteen new tests were repeated 30 times, and the
+whole `daemon::` suite 30 times, without a failure); `cargo check`, formatting
+verification, and all-target Clippy also passed without warnings. The suite
+passed inside the sandbox, and the ignored tests were not run. The coordinator
+tests use the real listener in a private temporary runtime root through a
+test-only `UnixRuntimeListener::bind_at`, `FakeBackend`, and in-test backends;
+they do not need a real Hyprland session.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -93,10 +103,16 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   handler; it returns `AuthorityError` (`Unavailable` when the call was not
   admitted, `ResponseLost` when it was admitted but no response arrived), which
   fits the transport and Unix runtime `Handler(E)` variants and never becomes a
-  protocol response. `Authority::spawn` is the only place requiring
-  `B: WindowBackend + Send + 'static`; a compile-time test checks that
-  `HyprlandBackend` satisfies it. An authority panic is fatal and is not
+  protocol response. The `B: WindowBackend + Send + 'static` bound applies only
+  at the concurrent boundaries (`Authority::spawn`,
+  `Authority::spawn_with_exit_hook`, and `Coordinator::start`), not to the
+  `WindowBackend` trait; a compile-time test checks that `HyprlandBackend`
+  satisfies it. An authority panic is fatal and is not
   replaced; `Authority::shutdown` reports it as `Panicked`.
+  `Authority::spawn_with_exit_hook` also runs a hook once when the authority
+  thread ends, including on panic. The hook must not panic, and the drop guard
+  contains a panicking hook so it cannot abort the process. `Authority::spawn`
+  keeps its signature and behavior and delegates to the same code without a hook.
 - Connection worker (`daemon::spawn_worker`): one thread named
   `clea-windowd-worker` that serves one accepted `UnixStream` through
   `serve_unix_connection_with_handler`, forwarding each request line to an
@@ -112,13 +128,28 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   the authority or other workers. `WorkerLifecycleError` reports
   `ControlHandleFailed` or `SpawnFailed` from `spawn_worker` and `Panicked` from
   `join`.
+- Daemon coordinator (`daemon::Coordinator`, [ADR 0007](docs/architecture/adr/0007-window-management-daemon-coordinator.md),
+  status Proposed): `Coordinator::start` takes the bound `UnixRuntimeListener`
+  and the built service, starts the authority, and runs an accept thread named
+  `clea-windowd-accept` that owns the listener, the authority, and the worker
+  handles. It starts one worker per accepted stream, reaps finished workers on
+  each accept, and closes a connection whose worker cannot be created. A
+  cloneable `ShutdownHandle` queues a lifecycle event and wakes the blocked
+  `accept` by connecting to the daemon's own service socket; the connection is
+  made only if the event was delivered, and the event receiver is dropped as soon
+  as the loop ends. The authority's exit hook reports a failure the same way, so
+  an authority failure is detected without a new client. The shutdown sequence
+  is: leave the loop, close every worker connection, join the workers, shut the
+  authority down, and clean up the listener by device and inode. `wait` returns
+  a `CoordinatorReport` with the stop reason (`ShutdownRequested`,
+  `AuthorityFailed`, or `AcceptFailed`), worker counts, and the result of each
+  shutdown step. `Coordinator::start` is the only coordinator item requiring
+  `B: WindowBackend + Send + 'static`.
 
 ## Not implemented
 
-- Multi-client daemon coordinator: the accept/lifecycle role that owns the
-  `UnixRuntimeListener`, tracking and reaping worker handles, fatal-authority
-  handling that stops new admissions, and listener cleanup. The authority and
-  the connection worker exist, but nothing starts them outside tests.
+- Signal handling: nothing calls `ShutdownHandle::request_shutdown` from a
+  signal yet.
 - Functional executable entry point (`main.rs` is empty).
 - Automatic reaction to compositor events and reconciliation.
 - Persistence of modes or external identities.
@@ -130,13 +161,11 @@ The library components do not yet form an operational desktop daemon.
 
 ## Next milestone
 
-Implement and test the **daemon execution coordinator** from
-[ADR 0006](docs/architecture/adr/0006-window-management-daemon-execution.md)
-independently of `main.rs`, on top of the existing authority and connection
-worker: an accept/lifecycle role that owns the `UnixRuntimeListener`, starts a
-worker for each accepted stream, tracks and reaps the worker handles, stops new
-admissions when the authority fails, and closes the connections before joining
-the authority. Verify these behaviors before wiring the executable.
+Plan and implement signal handling and a functional `main.rs` on top of the
+coordinator: start the real `HyprlandBackend`, bind the listener, call
+`Coordinator::start`, connect signals to `ShutdownHandle::request_shutdown`, and
+end the process when the coordinator stops or panics. The plan must be
+presented and authorized before implementation.
 
 ## Known risks and limitations
 
@@ -154,19 +183,36 @@ the authority. Verify these behaviors before wiring the executable.
   worker limits are not specified.
 - Controlled shutdown depends on the connection workers ending:
   `Authority::shutdown` returns only after every `AuthorityClient` clone is
-  dropped, and a worker blocked on an idle client holds one. The coordinator must
-  call `WorkerHandle::close_connection` on its workers to end them, and that
-  does not wake a worker that is waiting for the authority inside a request.
-- Connection workers have no limits or supervision yet: no maximum number of
+  dropped. The coordinator closes every worker connection with
+  `WorkerHandle::close_connection`, which does not wake a worker that is waiting
+  for the authority inside a request, so shutdown waits for a slow backend
+  operation.
+- A panic of the coordinator thread is fatal for the process:
+  `CoordinatorError::Panicked` leaves the workers and the authority running,
+  detached, until the process exits. The future `main.rs` must observe
+  `Coordinator::is_finished` or call `Coordinator::wait` and end the process.
+- Accept errors are fatal and are not classified, because
+  `UnixRuntimeError::AcceptFailed` does not keep the `io::ErrorKind`; telling
+  transient from fatal errors requires preserving it in the Unix runtime. If the
+  socket file is removed or replaced, the wake-up connection fails
+  (`ShutdownError::WakeFailed`) and the accept loop stays blocked until a client
+  connects. The wake-up connect can also block in a rare race: the receiver is
+  dropped between a successful send and the connect, and the listener backlog is
+  full.
+- The coordinator and workers have no limits yet: no maximum number of
   connections (each costs a thread and three to four descriptors: the stream,
   the control duplicate, the cleanup guard, and the runtime's reader clone), no
   maximum line size (the framing reads an unbounded line), no timeout for idle
-  connections, no reaping of finished worker handles, and no logging, so
-  `WorkerExit` is the only diagnostic. Under descriptor exhaustion `try_clone`
-  fails and the worker is refused. The extra duplicates exist because
-  `serve_unix_connection_with_handler` takes the stream by value.
-- `ControlHandleFailed` and `SpawnFailed` are not covered by tests, because they
-  cannot be forced deterministically.
+  connections, and no logging, so `WorkerExit` and `CoordinatorReport` are the
+  only diagnostics. Finished workers are reaped only when a connection is
+  accepted or at shutdown, and each holds a descriptor until then. Under
+  descriptor exhaustion `try_clone` fails and the connection is refused. The
+  extra duplicates exist because `serve_unix_connection_with_handler` takes the
+  stream by value.
+- Not covered by tests, because they cannot be forced deterministically:
+  `ControlHandleFailed` and `SpawnFailed`, accept errors, a failure to create the
+  coordinator thread, a panic of the coordinator thread, and the race in the
+  wake-up connect described above.
 - Production signal handling, supervision, persistence, and compatibility with
   other Hyprland versions remain future work.
 
