@@ -35,6 +35,13 @@ passed with **188 passed, 0 failed, 3 ignored** (five new Unix runtime tests);
 without warnings. The suite again passed inside the sandbox, and the ignored
 tests were not run.
 
+After adding the service authority (`daemon` module), package tests passed with
+**202 passed, 0 failed, 3 ignored** (fourteen new authority tests, repeated 30
+times without a failure); `cargo check`, formatting verification, and all-target
+Clippy also passed without warnings. The suite passed inside the sandbox, and
+the ignored tests were not run. The new tests use `FakeBackend`, in-test
+backends, and `UnixStream::pair()`, not a real Hyprland session.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -70,10 +77,24 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   handler's error out of `UnixRuntimeError`. A handler error closes the
   connection without a response, so the client observes only EOF.
   `serve_unix_connection` keeps its signature and behavior.
+- Service authority (`daemon::Authority`): one thread that exclusively owns the
+  `WindowManagementService`, admitting `ServiceCall` values one at a time
+  through a zero-capacity `std::sync::mpsc` rendezvous channel, with a
+  one-response channel per call. `AuthorityClient::submit` is the worker-facing
+  handler; it returns `AuthorityError` (`Unavailable` when the call was not
+  admitted, `ResponseLost` when it was admitted but no response arrived), which
+  fits the transport and Unix runtime `Handler(E)` variants and never becomes a
+  protocol response. `Authority::spawn` is the only place requiring
+  `B: WindowBackend + Send + 'static`; a compile-time test checks that
+  `HyprlandBackend` satisfies it. An authority panic is fatal and is not
+  replaced; `Authority::shutdown` reports it as `Panicked`.
 
 ## Not implemented
 
-- Multi-client daemon execution coordinator and authority thread.
+- Multi-client daemon coordinator: accept/lifecycle role, one connection worker
+  per client, worker spawn-failure handling, fatal-authority handling by the
+  accept role, and listener cleanup. The authority exists, but nothing spawns it
+  outside tests.
 - Functional executable entry point (`main.rs` is empty).
 - Automatic reaction to compositor events and reconciliation.
 - Persistence of modes or external identities.
@@ -87,10 +108,11 @@ The library components do not yet form an operational desktop daemon.
 
 Implement and test the **daemon execution coordinator** from
 [ADR 0006](docs/architecture/adr/0006-window-management-daemon-execution.md)
-independently of `main.rs`: one service authority thread, one connection worker
-per client, standard-library channels, and reused JSON Lines framing. Verify
-shared state, idle/slow-client isolation, authority failure, and controlled
-shutdown before wiring the executable.
+independently of `main.rs`, on top of the existing authority: an accept/lifecycle
+role that owns the `UnixRuntimeListener`, one connection worker per client using
+the handler-based serving functions, and reused JSON Lines framing. Verify
+worker spawn failure, fatal-authority handling that stops new admissions, and
+controlled shutdown before wiring the executable.
 
 ## Known risks and limitations
 
@@ -106,6 +128,10 @@ shutdown before wiring the executable.
   mode and observed placement different.
 - Identity maps retain historical entries; line-size and future connection/
   worker limits are not specified.
+- Controlled shutdown depends on the connection workers ending:
+  `Authority::shutdown` returns only after every `AuthorityClient` clone is
+  dropped, and a worker blocked on an idle client holds one. The coordinator will
+  need to close the connection streams to end its workers.
 - Production signal handling, supervision, persistence, and compatibility with
   other Hyprland versions remain future work.
 
