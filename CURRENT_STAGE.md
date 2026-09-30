@@ -42,6 +42,15 @@ Clippy also passed without warnings. The suite passed inside the sandbox, and
 the ignored tests were not run. The new tests use `FakeBackend`, in-test
 backends, and `UnixStream::pair()`, not a real Hyprland session.
 
+After moving the shared authority test helpers into `daemon/test_support.rs`,
+the package still passed **202 passed, 0 failed, 3 ignored**. After adding the
+connection worker, package tests passed with **212 passed, 0 failed, 3 ignored**
+(ten new worker tests, repeated 30 times without a failure); `cargo check`,
+formatting verification, and all-target Clippy also passed without warnings.
+The suite passed inside the sandbox, and the ignored tests were not run. The
+worker tests use `UnixStream::pair()` and `FakeBackend`; they do not bind a
+listener or need a real Hyprland session.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -88,13 +97,28 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   `B: WindowBackend + Send + 'static`; a compile-time test checks that
   `HyprlandBackend` satisfies it. An authority panic is fatal and is not
   replaced; `Authority::shutdown` reports it as `Panicked`.
+- Connection worker (`daemon::spawn_worker`): one thread named
+  `clea-windowd-worker` that serves one accepted `UnixStream` through
+  `serve_unix_connection_with_handler`, forwarding each request line to an
+  `AuthorityClient`. It implements no framing and never sees the service or the
+  backend. The thread returns a `WorkerExit` (`Completed`, `Transport`,
+  `Preparation`, or `Authority`), and none of the failure variants becomes a
+  protocol response: the client observes only EOF. `WorkerHandle` offers
+  `is_finished`, `join`, and `close_connection`, which shuts down the socket
+  through a duplicated descriptor so a worker blocked on an idle client ends.
+  A `CloseOnDrop` guard shuts the socket down when the worker ends, including
+  on panic, so the client sees EOF even while the coordinator's duplicate is
+  alive. A panicking worker closes only its own connection and does not affect
+  the authority or other workers. `WorkerLifecycleError` reports
+  `ControlHandleFailed` or `SpawnFailed` from `spawn_worker` and `Panicked` from
+  `join`.
 
 ## Not implemented
 
-- Multi-client daemon coordinator: accept/lifecycle role, one connection worker
-  per client, worker spawn-failure handling, fatal-authority handling by the
-  accept role, and listener cleanup. The authority exists, but nothing spawns it
-  outside tests.
+- Multi-client daemon coordinator: the accept/lifecycle role that owns the
+  `UnixRuntimeListener`, tracking and reaping worker handles, fatal-authority
+  handling that stops new admissions, and listener cleanup. The authority and
+  the connection worker exist, but nothing starts them outside tests.
 - Functional executable entry point (`main.rs` is empty).
 - Automatic reaction to compositor events and reconciliation.
 - Persistence of modes or external identities.
@@ -108,11 +132,11 @@ The library components do not yet form an operational desktop daemon.
 
 Implement and test the **daemon execution coordinator** from
 [ADR 0006](docs/architecture/adr/0006-window-management-daemon-execution.md)
-independently of `main.rs`, on top of the existing authority: an accept/lifecycle
-role that owns the `UnixRuntimeListener`, one connection worker per client using
-the handler-based serving functions, and reused JSON Lines framing. Verify
-worker spawn failure, fatal-authority handling that stops new admissions, and
-controlled shutdown before wiring the executable.
+independently of `main.rs`, on top of the existing authority and connection
+worker: an accept/lifecycle role that owns the `UnixRuntimeListener`, starts a
+worker for each accepted stream, tracks and reaps the worker handles, stops new
+admissions when the authority fails, and closes the connections before joining
+the authority. Verify these behaviors before wiring the executable.
 
 ## Known risks and limitations
 
@@ -130,8 +154,19 @@ controlled shutdown before wiring the executable.
   worker limits are not specified.
 - Controlled shutdown depends on the connection workers ending:
   `Authority::shutdown` returns only after every `AuthorityClient` clone is
-  dropped, and a worker blocked on an idle client holds one. The coordinator will
-  need to close the connection streams to end its workers.
+  dropped, and a worker blocked on an idle client holds one. The coordinator must
+  call `WorkerHandle::close_connection` on its workers to end them, and that
+  does not wake a worker that is waiting for the authority inside a request.
+- Connection workers have no limits or supervision yet: no maximum number of
+  connections (each costs a thread and three to four descriptors: the stream,
+  the control duplicate, the cleanup guard, and the runtime's reader clone), no
+  maximum line size (the framing reads an unbounded line), no timeout for idle
+  connections, no reaping of finished worker handles, and no logging, so
+  `WorkerExit` is the only diagnostic. Under descriptor exhaustion `try_clone`
+  fails and the worker is refused. The extra duplicates exist because
+  `serve_unix_connection_with_handler` takes the stream by value.
+- `ControlHandleFailed` and `SpawnFailed` are not covered by tests, because they
+  cannot be forced deterministically.
 - Production signal handling, supervision, persistence, and compatibility with
   other Hyprland versions remain future work.
 
