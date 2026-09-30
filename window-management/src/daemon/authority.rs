@@ -107,16 +107,53 @@ pub struct Authority {
 impl Authority {
     /// Moves the service, and with it the backend, into a new authority thread.
     ///
-    /// This is the only place that requires the backend to be `Send + 'static`,
-    /// because it is the boundary that moves the backend between threads.
+    /// This is a boundary that moves the backend between threads, so it requires
+    /// the backend to be `Send + 'static`. [`Authority::spawn_with_exit_hook`]
+    /// and the coordinator are the other such boundaries.
     pub fn spawn<B>(service: WindowManagementService<B>) -> Result<Self, AuthorityLifecycleError>
+    where
+        B: WindowBackend + Send + 'static,
+    {
+        Self::spawn_inner(service, None)
+    }
+
+    /// Like [`Authority::spawn`], and also runs `hook` once on the authority
+    /// thread when it ends, whether it ended orderly or by panicking.
+    ///
+    /// The hook runs after the service and the call receiver have been dropped.
+    /// It runs from a drop guard, possibly while a panic is unwinding, so it must
+    /// not panic: it must ignore every error and must not use `unwrap` or
+    /// `expect`. A panic in a hook that runs during unwinding would abort the
+    /// process, so the guard also contains a panicking hook. It must not block
+    /// indefinitely either, because [`Authority::shutdown`] joins this thread.
+    ///
+    /// Like `spawn`, this is a boundary that moves the backend between threads,
+    /// so it requires `B: Send + 'static`.
+    pub fn spawn_with_exit_hook<B, H>(
+        service: WindowManagementService<B>,
+        hook: H,
+    ) -> Result<Self, AuthorityLifecycleError>
+    where
+        B: WindowBackend + Send + 'static,
+        H: FnOnce() + Send + 'static,
+    {
+        Self::spawn_inner(service, Some(Box::new(hook)))
+    }
+
+    fn spawn_inner<B>(
+        service: WindowManagementService<B>,
+        hook: Option<ExitHook>,
+    ) -> Result<Self, AuthorityLifecycleError>
     where
         B: WindowBackend + Send + 'static,
     {
         let (calls, receiver) = mpsc::sync_channel(0);
         let thread = thread::Builder::new()
             .name("clea-windowd-authority".to_owned())
-            .spawn(move || run_authority(service, receiver))
+            .spawn(move || {
+                let _exit = ExitGuard(hook);
+                run_authority(service, receiver);
+            })
             .map_err(|_| AuthorityLifecycleError::SpawnFailed)?;
 
         Ok(Self {
@@ -149,6 +186,21 @@ impl Authority {
         let Self { client, thread } = self;
         drop(client);
         thread.join().map_err(|_| AuthorityLifecycleError::Panicked)
+    }
+}
+
+type ExitHook = Box<dyn FnOnce() + Send + 'static>;
+
+/// Runs the exit hook when the authority thread ends, including by panic.
+struct ExitGuard(Option<ExitHook>);
+
+impl Drop for ExitGuard {
+    fn drop(&mut self) {
+        if let Some(hook) = self.0.take() {
+            // A panic escaping a drop that runs during unwinding aborts the
+            // process, so a misbehaving hook is contained here.
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(hook));
+        }
     }
 }
 
@@ -629,6 +681,66 @@ mod tests {
             assert_eq!(call(&client, "status", "status", json!({}))["ok"], true);
 
             drop(client);
+
+            assert_eq!(authority.shutdown(), Ok(()));
+        });
+    }
+
+    #[test]
+    fn exit_hook_runs_exactly_once_after_an_orderly_shutdown() {
+        guarded(|| {
+            let (ran, observed) = mpsc::channel();
+            let authority =
+                Authority::spawn_with_exit_hook(service_with(FakeBackend::new()), move || {
+                    let _ = ran.send(());
+                })
+                .expect("authority should start");
+            let client = authority.client();
+            assert_eq!(call(&client, "status", "status", json!({}))["ok"], true);
+            assert!(observed.try_recv().is_err());
+
+            drop(client);
+            assert_eq!(authority.shutdown(), Ok(()));
+
+            assert_eq!(observed.recv_timeout(GUARD), Ok(()));
+            // The hook consumed its sender, so a second run is impossible.
+            assert!(observed.recv_timeout(GUARD).is_err());
+        });
+    }
+
+    #[test]
+    fn exit_hook_runs_when_the_authority_panics() {
+        guarded(|| {
+            let (ran, observed) = mpsc::channel();
+            let authority = Authority::spawn_with_exit_hook(
+                WindowManagementService::new(WindowManager::new(
+                    PanickingBackend,
+                    WorkspaceMode::Tiling,
+                )),
+                move || {
+                    let _ = ran.send(());
+                },
+            )
+            .expect("authority should start");
+            let client = authority.client();
+
+            let lost = client.submit(&request("boom", "list_windows", json!({})));
+
+            assert_eq!(lost, Err(AuthorityError::ResponseLost));
+            assert_eq!(observed.recv_timeout(GUARD), Ok(()));
+            drop(client);
+            assert_eq!(authority.shutdown(), Err(AuthorityLifecycleError::Panicked));
+        });
+    }
+
+    #[test]
+    fn panicking_exit_hook_is_contained_instead_of_failing_the_authority() {
+        guarded(|| {
+            let authority =
+                Authority::spawn_with_exit_hook(service_with(FakeBackend::new()), || {
+                    panic!("intentional exit hook failure in test")
+                })
+                .expect("authority should start");
 
             assert_eq!(authority.shutdown(), Ok(()));
         });
