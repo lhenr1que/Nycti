@@ -165,6 +165,14 @@ impl UnixRuntimeListener {
         Self::bind(&root)
     }
 
+    /// Binds at an explicit runtime root, for tests only. The root is validated
+    /// like the production root; production always resolves `XDG_RUNTIME_DIR`.
+    #[cfg(test)]
+    pub(crate) fn bind_at(root: &Path) -> Result<Self, UnixRuntimeError> {
+        let root = resolve_runtime_root_value(Some(root.as_os_str().to_os_string()))?;
+        Self::bind(&root)
+    }
+
     fn bind(root: &ValidatedRuntimeRoot) -> Result<Self, UnixRuntimeError> {
         let runtime_directory = prepare_clea_directory(root)?;
         let socket_path = runtime_directory.join(WINDOW_MANAGEMENT_SOCKET);

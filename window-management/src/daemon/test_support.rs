@@ -1,5 +1,10 @@
 //! Helpers shared by the authority and worker tests.
 
+use std::env;
+use std::fs::{self, DirBuilder, Permissions};
+use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::Duration;
@@ -12,6 +17,7 @@ use crate::backend::{
     BackendError, WindowBackend, WindowId, WindowObservation, WorkspaceObservation,
 };
 use crate::core::{WindowManager, WindowPlacement, WorkspaceMode};
+use crate::runtime::UnixRuntimeListener;
 use crate::service::WindowManagementService;
 
 /// Protection against a hung test only. It is never used to synchronize.
@@ -155,4 +161,44 @@ impl WindowBackend for PanickingBackend {
     fn focus_window(&mut self, _window_id: WindowId) -> Result<(), BackendError> {
         Err(BackendError::ActionFailed)
     }
+}
+
+static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(1);
+
+/// A private runtime root (mode `0700`) that is removed when dropped.
+pub(super) struct TestDirectory {
+    path: PathBuf,
+}
+
+impl TestDirectory {
+    pub(super) fn new() -> Self {
+        let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let path = env::temp_dir().join(format!(
+            "clea-windowd-daemon-test-{}-{sequence}",
+            std::process::id()
+        ));
+        let mut builder = DirBuilder::new();
+        builder.mode(0o700);
+        builder
+            .create(&path)
+            .expect("unique test directory should be created");
+        fs::set_permissions(&path, Permissions::from_mode(0o700))
+            .expect("test directory mode should be set");
+        Self { path }
+    }
+
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TestDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+/// Binds the real runtime listener inside a private test directory.
+pub(super) fn bound_listener(directory: &TestDirectory) -> UnixRuntimeListener {
+    UnixRuntimeListener::bind_at(directory.path()).expect("listener should bind in the test root")
 }
