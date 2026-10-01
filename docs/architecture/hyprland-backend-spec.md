@@ -32,8 +32,11 @@ The current Rust `WindowBackend` trait requires all of these capabilities:
 - ensure a window is floating; and
 - focus a window.
 
-The first implementation stage specified here is read-only and therefore does
-not yet satisfy the complete trait. It must not implement action methods by
+The first implementation stage specified here was read-only and therefore did
+not satisfy the complete trait; `HyprlandBackend` now implements it fully, with
+the actions specified in the
+[Hyprland actions specification](hyprland-actions-spec.md). It must not
+implement action methods by
 returning false success, silently doing nothing, or substituting toggle
 semantics.
 
