@@ -1,6 +1,6 @@
 # ADR 0007: Window Management Daemon Coordinator, Failure Taxonomy, and Shutdown
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-30
 
 ## Context
@@ -122,7 +122,8 @@ unwinding from a panic. The coordinator's hook sends an authority-exit event
 through the waker. Because the coordinator holds an authority client, an
 authority exit while the loop runs is a failure. The coordinator then stops
 admitting connections, runs the shutdown sequence, and reports the failure. It
-never creates another service or authority.
+never creates another service or authority. The coordinator also checks
+`Authority::is_finished` after every accept, as a second safeguard.
 
 The hook must not panic. It ignores every error, and it uses no `unwrap` or
 `expect`, because it runs in `Drop` during unwinding, where a second panic would

@@ -1,6 +1,6 @@
 # ADR 0008: Window Management Daemon Signals and Process Lifecycle
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-30
 
 ## Context
