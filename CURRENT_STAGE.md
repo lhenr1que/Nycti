@@ -73,7 +73,20 @@ real `clea-windowd` binary as a child process with a cleared environment, a
 private runtime directory, and a fake Hyprland socket serving the recorded
 fixtures; they signal only their own child process, through `/usr/bin/kill`
 (a dependency of the test environment), and never touch a real Hyprland session.
-The project has not validated the daemon against a real Hyprland session.
+The automated tests never use a real Hyprland session.
+
+Manual validation against a real Hyprland session: on 2026-09-30 the maintainer
+ran the 10-step manual script on a real Hyprland session, using only read-only
+protocol methods, and every step gave the expected result: startup, the
+permissions of the runtime directory and the socket, the reads (`status`,
+`get_default_mode`, `list_workspaces`, `list_windows`), `SIGTERM` and `SIGINT`
+ending the daemon with code 0, recovery of a stale socket, a second daemon
+exiting with code 2, environment failures exiting with code 1, and a stopped
+Hyprland answering `compositor_unavailable`. This was run by the maintainer and
+reported to the project; the project's tooling did not run it. Not validated
+manually: the second signal and the forced exit (only the automated test covers
+them), signals that arrive during startup, `SIGHUP`, and the case without a
+focused window.
 
 Validated commands, run from the repository root:
 
@@ -143,7 +156,7 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   `ControlHandleFailed` or `SpawnFailed` from `spawn_worker` and `Panicked` from
   `join`.
 - Daemon coordinator (`daemon::Coordinator`, [ADR 0007](docs/architecture/adr/0007-window-management-daemon-coordinator.md),
-  status Proposed): `Coordinator::start` takes the bound `UnixRuntimeListener`
+  status Accepted): `Coordinator::start` takes the bound `UnixRuntimeListener`
   and the built service, starts the authority, and runs an accept thread named
   `clea-windowd-accept` that owns the listener, the authority, and the worker
   handles. It starts one worker per accepted stream, reaps finished workers on
@@ -162,7 +175,7 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
 - `BackendError` implements `Display` and `std::error::Error`, with English
   messages that do not expose backend identities.
 - Daemon executable ([ADR 0008](docs/architecture/adr/0008-window-management-daemon-signals.md),
-  status Proposed): `clea-windowd` registers `SIGTERM` and `SIGINT` through
+  status Accepted): `clea-windowd` registers `SIGTERM` and `SIGINT` through
   `signal-hook` before anything is bound, then `daemon::run_from_env` binds the
   service socket from `XDG_RUNTIME_DIR`, constructs the Hyprland backend from the
   session environment, builds the manager (default mode `Tiling`) and the
@@ -187,9 +200,9 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
 
 ## Not implemented
 
-- Validation of the daemon against a real Hyprland session. The automated tests
-  use a fake Hyprland; the manual script for a real session is not part of this
-  repository's suite.
+- Manual validation against a real Hyprland session of the second signal and the
+  forced exit, of signals during startup, of `SIGHUP`, and of the case without a
+  focused window. The forced exit only has its automated test.
 - Supervision of the daemon process (for example a systemd user service).
 - Automatic reaction to compositor events and reconciliation.
 - Persistence of modes or external identities.
@@ -201,11 +214,9 @@ The library components do not yet form an operational desktop daemon.
 
 ## Next milestone
 
-Validate `clea-windowd` against a real Hyprland session by hand, using only
-read-only protocol methods (`status`, `get_default_mode`, `list_workspaces`,
-`list_windows`), `SIGTERM`, and a check that the socket is gone. After that,
-decide whether to accept ADR 0007 and ADR 0008, which stay Proposed until
-`ShutdownHandle` has been validated with real signals. The next implementation
+No next milestone is recorded yet. The manual validation of the daemon was done
+on 2026-09-30, and ADR 0007 and ADR 0008 are Accepted. The open items are listed
+under Not implemented and Known risks and limitations. The next implementation
 step must be planned and authorized before it starts.
 
 ## Known risks and limitations
@@ -275,9 +286,10 @@ step must be planned and authorized before it starts.
   format. The process-level tests synchronize on the `listening on` and
   `shutdown requested` lines, so they are tied to that text, and they depend on
   `/usr/bin/kill` in the test environment.
-- Not covered by tests: signals that arrive during startup, `SIGHUP`, the
-  behavior of `signal-hook` against a real Hyprland session, and the failure to
-  create the signal thread.
+- Not covered by tests: signals that arrive during startup, `SIGHUP`, and the
+  failure to create the signal thread. The behavior of `signal-hook` with
+  `SIGTERM` and `SIGINT` was validated manually on a real Hyprland session on
+  2026-09-30, but neither the second signal nor `SIGHUP` was.
 - Persistence, supervision, and compatibility with other Hyprland versions remain
   future work.
 
