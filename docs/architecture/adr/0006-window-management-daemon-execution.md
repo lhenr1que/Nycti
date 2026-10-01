@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-09-28
+- Refined by: [ADR 0007](0007-window-management-daemon-coordinator.md) (Accepted) and [ADR 0008](0008-window-management-daemon-signals.md) (Accepted), which settle the items this ADR defers
 
 ## Context
 

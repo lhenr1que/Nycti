@@ -133,8 +133,8 @@ excluded by ADR 0006.
 - One new dependency and a lockfile change of three packages.
 - The signal logic is tested with an injected source; the real `signal-hook`
   source is exercised by process-level tests that signal a child process.
-- ADR 0007 stays Proposed until this milestone has validated `ShutdownHandle`
-  with real signals.
+- ADR 0007 was accepted together with this ADR, after `ShutdownHandle` was
+  validated manually with real signals.
 
 ### Debts and limitations (provisional)
 
