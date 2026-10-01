@@ -61,6 +61,20 @@ tests use the real listener in a private temporary runtime root through a
 test-only `UnixRuntimeListener::bind_at`, `FakeBackend`, and in-test backends;
 they do not need a real Hyprland session.
 
+After adding the `BackendError` messages, the daemon run logic, the executable,
+and the process-level tests, package tests passed with **244 passed, 0 failed, 3
+ignored**: 237 library tests (three `BackendError` tests and nine `daemon::run`
+tests are new) and 7 process-level tests in `tests/daemon_process.rs`. The 19 new
+tests were repeated 30 times, and the whole suite 30 times, without a failure and
+with no daemon left running. `cargo check`, formatting verification, and
+all-target Clippy also passed without warnings. The suite passed inside the
+sandbox, and the ignored tests were not run. The process-level tests start the
+real `clea-windowd` binary as a child process with a cleared environment, a
+private runtime directory, and a fake Hyprland socket serving the recorded
+fixtures; they signal only their own child process, through `/usr/bin/kill`
+(a dependency of the test environment), and never touch a real Hyprland session.
+The project has not validated the daemon against a real Hyprland session.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -145,12 +159,38 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   `AuthorityFailed`, or `AcceptFailed`), worker counts, and the result of each
   shutdown step. `Coordinator::start` is the only coordinator item requiring
   `B: WindowBackend + Send + 'static`.
+- `BackendError` implements `Display` and `std::error::Error`, with English
+  messages that do not expose backend identities.
+- Daemon executable ([ADR 0008](docs/architecture/adr/0008-window-management-daemon-signals.md),
+  status Proposed): `clea-windowd` registers `SIGTERM` and `SIGINT` through
+  `signal-hook` before anything is bound, then `daemon::run_from_env` binds the
+  service socket from `XDG_RUNTIME_DIR`, constructs the Hyprland backend from the
+  session environment, builds the manager (default mode `Tiling`) and the
+  service, and starts the coordinator. A dedicated signal thread reads the
+  signals and calls `ShutdownHandle::request_shutdown`; no signal handler calls
+  it. The first signal requests an orderly shutdown and a second forces an
+  immediate exit with code 7. `main.rs` stays thin and `signals.rs` is the only
+  code that knows the dependency; the library takes a `ShutdownSource` trait, so
+  its tests inject a source. On exit the daemon prints a plain-text report on
+  standard error and returns a code: 0 clean, 1 startup failure, 2 already
+  running, 3 authority failed, 4 accept failed, 5 coordinator panicked, 6
+  shutdown step failed, 7 forced exit. When the coordinator stops, the signal
+  source is closed and the signal thread is joined. The compositor is not probed
+  at startup.
+- `signal-hook` 0.3.18 (`default-features = false`, feature `iterator`) is the one
+  new dependency; it adds `signal-hook-registry` 1.4.5 and `libc` 0.2.174 to
+  `Cargo.lock`, and no existing package changed version. Licenses, read from the
+  manifests and license files of those packages in the local crates.io registry
+  copy: `signal-hook` and `signal-hook-registry` Apache-2.0/MIT, `libc` MIT OR
+  Apache-2.0. Both licenses are compatible with the GPL-3.0 of this project. The
+  project's own code contains no `unsafe`.
 
 ## Not implemented
 
-- Signal handling: nothing calls `ShutdownHandle::request_shutdown` from a
-  signal yet.
-- Functional executable entry point (`main.rs` is empty).
+- Validation of the daemon against a real Hyprland session. The automated tests
+  use a fake Hyprland; the manual script for a real session is not part of this
+  repository's suite.
+- Supervision of the daemon process (for example a systemd user service).
 - Automatic reaction to compositor events and reconciliation.
 - Persistence of modes or external identities.
 - Shell/Settings integration; those directories currently contain only READMEs.
@@ -161,11 +201,12 @@ The library components do not yet form an operational desktop daemon.
 
 ## Next milestone
 
-Plan and implement signal handling and a functional `main.rs` on top of the
-coordinator: start the real `HyprlandBackend`, bind the listener, call
-`Coordinator::start`, connect signals to `ShutdownHandle::request_shutdown`, and
-end the process when the coordinator stops or panics. The plan must be
-presented and authorized before implementation.
+Validate `clea-windowd` against a real Hyprland session by hand, using only
+read-only protocol methods (`status`, `get_default_mode`, `list_workspaces`,
+`list_windows`), `SIGTERM`, and a check that the socket is gone. After that,
+decide whether to accept ADR 0007 and ADR 0008, which stay Proposed until
+`ShutdownHandle` has been validated with real signals. The next implementation
+step must be planned and authorized before it starts.
 
 ## Known risks and limitations
 
@@ -189,8 +230,8 @@ presented and authorized before implementation.
   operation.
 - A panic of the coordinator thread is fatal for the process:
   `CoordinatorError::Panicked` leaves the workers and the authority running,
-  detached, until the process exits. The future `main.rs` must observe
-  `Coordinator::is_finished` or call `Coordinator::wait` and end the process.
+  detached, until the process exits. `main` waits on `Coordinator::wait` and ends
+  the process with code 5 when that happens.
 - Accept errors are fatal and are not classified, because
   `UnixRuntimeError::AcceptFailed` does not keep the `io::ErrorKind`; telling
   transient from fatal errors requires preserving it in the Unix runtime. If the
@@ -213,7 +254,31 @@ presented and authorized before implementation.
   `ControlHandleFailed` and `SpawnFailed`, accept errors, a failure to create the
   coordinator thread, a panic of the coordinator thread, and the race in the
   wake-up connect described above.
-- Production signal handling, supervision, persistence, and compatibility with
-  other Hyprland versions remain future work.
+- The daemon is bound to the Hyprland instance resolved at startup
+  (`HYPRLAND_INSTANCE_SIGNATURE`). If Hyprland restarts with another signature,
+  the daemon must be restarted. The compositor is not probed at startup, so a
+  stopped compositor shows up as `compositor_unavailable` on each request that
+  needs it, while `status` keeps answering.
+- The default mode `Tiling` is fixed in the daemon, with no configuration
+  (provisional).
+- A second signal during a stalled shutdown forces an immediate exit with code 7
+  and runs no destructors, so the socket file stays on disk; the next start
+  recovers it as a stale socket. `SIGHUP` keeps its default action (provisional),
+  so closing the terminal ends the daemon without cleanup. If the signal thread
+  dies (for example by panicking) before the daemon stops, nothing reads the
+  signals any more: once `signal-hook` has installed its handling, `SIGTERM` and
+  `SIGINT` are ignored instead of using the system default action, and only
+  `SIGKILL` ends the daemon. The thread is joined only after the coordinator
+  stops and its result is ignored, so this failure is not observed
+  (provisional).
+- Exit codes and the standard error text are provisional and promise no stable
+  format. The process-level tests synchronize on the `listening on` and
+  `shutdown requested` lines, so they are tied to that text, and they depend on
+  `/usr/bin/kill` in the test environment.
+- Not covered by tests: signals that arrive during startup, `SIGHUP`, the
+  behavior of `signal-hook` against a real Hyprland session, and the failure to
+  create the signal thread.
+- Persistence, supervision, and compatibility with other Hyprland versions remain
+  future work.
 
 Architecture and contracts live in [docs/architecture](docs/architecture/).
