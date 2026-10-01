@@ -35,11 +35,11 @@ The multi-client execution model is selected by
 [ADR 0006](../docs/architecture/adr/0006-window-management-daemon-execution.md)
 and refined by [ADR 0007](../docs/architecture/adr/0007-window-management-daemon-coordinator.md)
 (coordinator) and [ADR 0008](../docs/architecture/adr/0008-window-management-daemon-signals.md)
-(signals), both still Proposed. The library implements the service authority,
+(signals), both Accepted. The library implements the service authority,
 the connection workers, and the coordinator. `clea-windowd` is a functional
 executable: it binds the service socket, starts the coordinator, and stops on
 `SIGTERM` or `SIGINT`. Its automated tests run it only against a fake Hyprland;
-it has not been validated by the project against a real Hyprland session. Shell,
+the maintainer validated it manually on a real Hyprland session on 2026-09-30. Shell,
 Settings, and packaging integration remain future work.
 
 Normal tests use fake backends and local Unix sockets. Process-level tests start

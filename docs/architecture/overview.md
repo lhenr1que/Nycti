@@ -67,7 +67,7 @@ the executable uses `signal-hook` for process signals
 threads and channels: one accept/lifecycle role, a worker per connection, and
 one exclusive service authority. The coordinator, the workers, and an executable
 that handles signals are implemented; [ADR 0007](adr/0007-window-management-daemon-coordinator.md)
-and ADR 0008 record their decisions and are still Proposed.
+and ADR 0008 record their decisions and are Accepted.
 
 See [CURRENT_STAGE.md](../../CURRENT_STAGE.md) for implemented components and the
 validated baseline; the automated tests exercise the daemon only against a fake
