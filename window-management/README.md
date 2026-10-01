@@ -32,11 +32,19 @@ applies placement to current windows. Automatic event handling and persistence
 are not implemented.
 
 The multi-client execution model is selected by
-[ADR 0006](../docs/architecture/adr/0006-window-management-daemon-execution.md),
-but its coordinator is not implemented and `main.rs` is still empty. Shell,
+[ADR 0006](../docs/architecture/adr/0006-window-management-daemon-execution.md)
+and refined by [ADR 0007](../docs/architecture/adr/0007-window-management-daemon-coordinator.md)
+(coordinator) and [ADR 0008](../docs/architecture/adr/0008-window-management-daemon-signals.md)
+(signals), both still Proposed. The library implements the service authority,
+the connection workers, and the coordinator. `clea-windowd` is a functional
+executable: it binds the service socket, starts the coordinator, and stops on
+`SIGTERM` or `SIGINT`. Its automated tests run it only against a fake Hyprland;
+it has not been validated by the project against a real Hyprland session. Shell,
 Settings, and packaging integration remain future work.
 
-Normal tests use fake backends and local Unix sockets. Three ignored tests
+Normal tests use fake backends and local Unix sockets. Process-level tests start
+the binary with a cleared environment and a fake Hyprland socket, and need
+`/usr/bin/kill` to signal the child process. Three ignored tests
 require real Hyprland; they are opt-in and are not part of the offline baseline.
 See [CURRENT_STAGE.md](../CURRENT_STAGE.md) for exact validated commands,
 toolchain, results, and known limitations.

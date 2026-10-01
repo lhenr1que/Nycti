@@ -60,14 +60,18 @@ CLEA components; see the ADR for rationale, consequences, and deferred details.
 [Protocol v1](window-management-protocol-v1.md) specifies the client schema and
 `$XDG_RUNTIME_DIR/clea/window-management.sock`. The
 [Unix runtime specification](window-management-unix-runtime.md) defines socket
-permissions and lifecycle. The implementation uses `serde` and `serde_json`.
+permissions and lifecycle. The implementation uses `serde` and `serde_json`, and
+the executable uses `signal-hook` for process signals
+([ADR 0008](adr/0008-window-management-daemon-signals.md)).
 [ADR 0006](adr/0006-window-management-daemon-execution.md) selects standard-library
 threads and channels: one accept/lifecycle role, a worker per connection, and
-one exclusive service authority. That coordinator is not implemented yet.
+one exclusive service authority. The coordinator, the workers, and an executable
+that handles signals are implemented; [ADR 0007](adr/0007-window-management-daemon-coordinator.md)
+and ADR 0008 record their decisions and are still Proposed.
 
 See [CURRENT_STAGE.md](../../CURRENT_STAGE.md) for implemented components and the
-validated baseline; these runtime decisions do not imply a functional daemon
-or integrated Shell/Settings clients already exist.
+validated baseline; the automated tests exercise the daemon only against a fake
+Hyprland, and integrated Shell/Settings clients do not exist yet.
 
 ## State invariants
 

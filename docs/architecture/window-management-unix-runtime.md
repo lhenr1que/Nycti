@@ -419,8 +419,10 @@ This specification covers the Unix adapter, not daemon coordination.
 accept/lifecycle role, one synchronous worker per connection, and one exclusive
 service authority thread, using standard-library channels with a central
 zero-capacity rendezvous channel. No exact fairness between clients is promised.
-The coordinator remains unimplemented; the existing adapter still serves one
-accepted stream through the generic framing layer.
+The coordinator is implemented in the `daemon` module, as recorded by
+[ADR 0007](adr/0007-window-management-daemon-coordinator.md) (Proposed); the
+adapter still serves one accepted stream through the generic framing layer, and
+the coordinator starts one worker for each accepted stream.
 
 `WindowManagementService` contains mutable authoritative state, including the
 default mode, explicit workspace modes, external identity registry, and owned
@@ -434,9 +436,13 @@ The first Unix-adapter implementation may therefore stop at:
 - acceptance of one connection; and
 - adaptation of one accepted stream to `serve_connection`.
 
-It need not introduce a daemon-wide accept loop. `main.rs` must remain without a
-complete functional daemon while this adapter is implemented and tested in
-isolation.
+That first implementation of the adapter did not introduce a daemon-wide accept
+loop, and `main.rs` remained without a complete functional daemon while the
+adapter was implemented and tested in isolation. This is historical context: the
+accept loop and a functional daemon now exist (see
+[ADR 0006](adr/0006-window-management-daemon-execution.md),
+[ADR 0007](adr/0007-window-management-daemon-coordinator.md), and
+[ADR 0008](adr/0008-window-management-daemon-signals.md)).
 
 ## Runtime error model
 

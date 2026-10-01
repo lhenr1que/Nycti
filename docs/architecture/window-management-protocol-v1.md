@@ -834,14 +834,15 @@ allocation are implemented. The
 [Unix runtime specification](window-management-unix-runtime.md) resolves stale
 socket cleanup and permission modes, and
 [ADR 0006](adr/0006-window-management-daemon-execution.md) selects threading,
-single-authority ownership, and multi-client ordering. Its coordinator is not
-implemented yet.
+single-authority ownership, and multi-client ordering. Its coordinator is
+implemented in the `daemon` module, as recorded by
+[ADR 0007](adr/0007-window-management-daemon-coordinator.md) (Proposed).
 
 The following remain open:
 
 1. retirement of historical external opaque ID tokens;
 2. operational resource limits;
-3. production daemon startup, signal handling, and supervision;
+3. supervision of the daemon process, for example by a service manager;
 4. persistence of default and explicit modes; and
 5. future event-driven reconciliation and notification protocols.
 
