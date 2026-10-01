@@ -10,6 +10,7 @@
 
 mod authority;
 mod coordinator;
+mod run;
 #[cfg(test)]
 mod test_support;
 mod worker;
@@ -17,5 +18,10 @@ mod worker;
 pub use authority::{Authority, AuthorityClient, AuthorityError, AuthorityLifecycleError};
 pub use coordinator::{
     Coordinator, CoordinatorError, CoordinatorReport, ShutdownError, ShutdownHandle, StopReason,
+};
+pub use run::{
+    EXIT_ACCEPT_FAILED, EXIT_ALREADY_RUNNING, EXIT_AUTHORITY_FAILED, EXIT_CLEAN, EXIT_FORCED,
+    EXIT_PANICKED, EXIT_STARTUP_FAILED, EXIT_UNCLEAN_SHUTDOWN, ShutdownSource, exit_code,
+    run_from_env, write_report,
 };
 pub use worker::{WorkerExit, WorkerHandle, WorkerLifecycleError, spawn_worker};
