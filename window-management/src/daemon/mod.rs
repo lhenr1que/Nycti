@@ -12,7 +12,7 @@ mod authority;
 mod coordinator;
 mod run;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 mod worker;
 
 pub use authority::{Authority, AuthorityClient, AuthorityError, AuthorityLifecycleError};

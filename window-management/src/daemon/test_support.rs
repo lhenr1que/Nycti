@@ -21,11 +21,11 @@ use crate::runtime::UnixRuntimeListener;
 use crate::service::WindowManagementService;
 
 /// Protection against a hung test only. It is never used to synchronize.
-pub(super) const GUARD: Duration = Duration::from_secs(30);
+pub(crate) const GUARD: Duration = Duration::from_secs(30);
 
 /// Runs a test body on its own thread so a hang fails instead of blocking
 /// `cargo test`. A panic in the body is propagated unchanged.
-pub(super) fn guarded<F: FnOnce() + Send + 'static>(body: F) {
+pub(crate) fn guarded<F: FnOnce() + Send + 'static>(body: F) {
     let (done, finished) = mpsc::channel();
     let handle = thread::spawn(move || {
         body();
@@ -42,23 +42,23 @@ pub(super) fn guarded<F: FnOnce() + Send + 'static>(body: F) {
     }
 }
 
-pub(super) fn service_with(backend: FakeBackend) -> WindowManagementService<FakeBackend> {
+pub(crate) fn service_with(backend: FakeBackend) -> WindowManagementService<FakeBackend> {
     WindowManagementService::new(WindowManager::new(backend, WorkspaceMode::Tiling))
 }
 
-pub(super) fn request(id: &str, method: &str, params: Value) -> Vec<u8> {
+pub(crate) fn request(id: &str, method: &str, params: Value) -> Vec<u8> {
     json!({"version": 1, "id": id, "method": method, "params": params})
         .to_string()
         .into_bytes()
 }
 
-pub(super) fn lined(request: &[u8]) -> Vec<u8> {
+pub(crate) fn lined(request: &[u8]) -> Vec<u8> {
     let mut line = request.to_vec();
     line.push(b'\n');
     line
 }
 
-pub(super) fn response(line: &str) -> Value {
+pub(crate) fn response(line: &str) -> Value {
     assert!(
         line.ends_with('\n'),
         "response must be one LF-terminated line"
@@ -66,14 +66,14 @@ pub(super) fn response(line: &str) -> Value {
     serde_json::from_str(line).expect("response should be JSON")
 }
 
-pub(super) fn call(client: &AuthorityClient, id: &str, method: &str, params: Value) -> Value {
+pub(crate) fn call(client: &AuthorityClient, id: &str, method: &str, params: Value) -> Value {
     let line = client
         .submit(&request(id, method, params))
         .expect("authority should respond");
     response(&line)
 }
 
-pub(super) fn fake_with_workspace_and_window() -> FakeBackend {
+pub(crate) fn fake_with_workspace_and_window() -> FakeBackend {
     let mut backend = FakeBackend::new();
     let workspace = backend.add_workspace(true);
     backend
@@ -82,7 +82,7 @@ pub(super) fn fake_with_workspace_and_window() -> FakeBackend {
     backend
 }
 
-pub(super) fn workspace_tokens(client: &AuthorityClient) -> Vec<String> {
+pub(crate) fn workspace_tokens(client: &AuthorityClient) -> Vec<String> {
     call(client, "workspaces", "list_workspaces", json!({}))["result"]["workspaces"]
         .as_array()
         .expect("workspaces should be an array")
@@ -98,14 +98,14 @@ pub(super) fn workspace_tokens(client: &AuthorityClient) -> Vec<String> {
 
 /// Fake backend whose placement actions signal entry and exit and wait for
 /// an explicit release, so tests can observe serialization without timing.
-pub(super) struct GatedBackend {
-    pub(super) inner: FakeBackend,
-    pub(super) events: mpsc::Sender<GateEvent>,
-    pub(super) release: mpsc::Receiver<()>,
+pub(crate) struct GatedBackend {
+    pub(crate) inner: FakeBackend,
+    pub(crate) events: mpsc::Sender<GateEvent>,
+    pub(crate) release: mpsc::Receiver<()>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum GateEvent {
+pub(crate) enum GateEvent {
     Enter,
     Exit,
 }
@@ -139,7 +139,7 @@ impl WindowBackend for GatedBackend {
 }
 
 /// Backend that panics when windows are listed, to end the authority abnormally.
-pub(super) struct PanickingBackend;
+pub(crate) struct PanickingBackend;
 
 impl WindowBackend for PanickingBackend {
     fn list_workspaces(&mut self) -> Result<Vec<WorkspaceObservation>, BackendError> {
@@ -166,12 +166,12 @@ impl WindowBackend for PanickingBackend {
 static NEXT_TEST_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 
 /// A private runtime root (mode `0700`) that is removed when dropped.
-pub(super) struct TestDirectory {
+pub(crate) struct TestDirectory {
     path: PathBuf,
 }
 
 impl TestDirectory {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
         let path = env::temp_dir().join(format!(
             "nycti-windowd-daemon-test-{}-{sequence}",
@@ -187,7 +187,7 @@ impl TestDirectory {
         Self { path }
     }
 
-    pub(super) fn path(&self) -> &Path {
+    pub(crate) fn path(&self) -> &Path {
         &self.path
     }
 }
@@ -199,6 +199,6 @@ impl Drop for TestDirectory {
 }
 
 /// Binds the real runtime listener inside a private test directory.
-pub(super) fn bound_listener(directory: &TestDirectory) -> UnixRuntimeListener {
+pub(crate) fn bound_listener(directory: &TestDirectory) -> UnixRuntimeListener {
     UnixRuntimeListener::bind_at(directory.path()).expect("listener should bind in the test root")
 }
