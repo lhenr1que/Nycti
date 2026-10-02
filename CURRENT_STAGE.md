@@ -107,6 +107,26 @@ manually: the second signal and the forced exit (only the automated test covers
 them), signals that arrive during startup, `SIGHUP`, and the case without a
 focused window.
 
+Manual validation of the renamed daemon: on 2026-10-01 the maintainer ran a
+shorter manual validation of the renamed daemon on a real Hyprland session. The
+2026-09-30 record above remains. This was run by the maintainer and reported to
+the project; the project's tooling did not run it. Observed:
+
+- A release build after `cargo clean`, in `/home/lhen/nycti`, produced
+  `nycti-windowd`, and `clea-windowd` does not exist in `target/release`.
+- The daemon printed `listening on /run/user/1000/nycti/window-management.sock`.
+  The `nycti` directory has mode 0700 and the socket has mode 0600, both owned by
+  the user. The directory `/run/user/1000/clea` does not exist.
+- Read queries through `socat`: `status` returned `protocol_version` 1 and
+  `service` `"nycti-windowd"`; `get_default_mode` returned `tiling`;
+  `list_workspaces` returned 3 workspaces (`w:1` to `w:3`), all with effective
+  mode `tiling`; `list_windows` returned 5 windows, all tiled.
+- Shutdown by `SIGINT` (Ctrl+C): the report showed workers completed=4 failed=0
+  panicked=0 refused=0, authority ok, and listener cleanup ok. The exit code was
+  0, the socket was removed, and the `nycti` directory was left empty.
+- Only read methods were exercised. The methods that change state were not
+  exercised in this validation; automated tests cover them.
+
 Validated commands, run from the repository root:
 
 ```sh
