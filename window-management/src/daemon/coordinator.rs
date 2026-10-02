@@ -408,7 +408,7 @@ mod tests {
             let mut client = Client::connect(&path);
 
             let reply = client.round_trip("status", "status", json!({}));
-            assert_eq!(reply["result"]["service"], "clea-windowd");
+            assert_eq!(reply["result"]["service"], "nycti-windowd");
             drop(client);
             coordinator
                 .shutdown_handle()

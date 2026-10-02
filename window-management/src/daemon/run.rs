@@ -444,7 +444,7 @@ mod tests {
         reader
             .read_line(&mut line)
             .expect("response should be read");
-        assert_eq!(response(&line)["result"]["service"], "clea-windowd");
+        assert_eq!(response(&line)["result"]["service"], "nycti-windowd");
     }
 
     fn report_with(

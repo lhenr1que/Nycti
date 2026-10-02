@@ -58,7 +58,7 @@ interface. These are Window Management decisions, not requirements for other
 CLEA components; see the ADR for rationale, consequences, and deferred details.
 
 [Protocol v1](window-management-protocol-v1.md) specifies the client schema and
-`$XDG_RUNTIME_DIR/clea/window-management.sock`. The
+`$XDG_RUNTIME_DIR/nycti/window-management.sock`. The
 [Unix runtime specification](window-management-unix-runtime.md) defines socket
 permissions and lifecycle. The implementation uses `serde` and `serde_json`, and
 the executable uses `signal-hook` for process signals

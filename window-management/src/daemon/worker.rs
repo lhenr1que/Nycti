@@ -249,7 +249,7 @@ mod tests {
 
             let reply = client.round_trip("status", "status", json!({}));
             assert_eq!(reply["id"], "status");
-            assert_eq!(reply["result"]["service"], "clea-windowd");
+            assert_eq!(reply["result"]["service"], "nycti-windowd");
             assert!(!worker.is_finished());
 
             drop(client);

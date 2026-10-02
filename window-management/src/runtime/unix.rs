@@ -16,7 +16,7 @@ use crate::transport::{
 };
 
 const RUNTIME_ENVIRONMENT_VARIABLE: &str = "XDG_RUNTIME_DIR";
-const CLEA_RUNTIME_DIRECTORY: &str = "clea";
+const NYCTI_RUNTIME_DIRECTORY: &str = "nycti";
 const WINDOW_MANAGEMENT_SOCKET: &str = "window-management.sock";
 const RUNTIME_DIRECTORY_MODE: u32 = 0o700;
 const SOCKET_MODE: u32 = 0o600;
@@ -54,8 +54,8 @@ impl fmt::Display for UnixRuntimeError {
         let message = match self {
             Self::RuntimeDirUnavailable => "runtime directory is unavailable",
             Self::InvalidRuntimeDir => "runtime directory is invalid",
-            Self::RuntimeDirectorySetupFailed => "CLEA runtime directory setup failed",
-            Self::UnsafeRuntimeDirectory => "CLEA runtime directory path is unsafe",
+            Self::RuntimeDirectorySetupFailed => "Nycti runtime directory setup failed",
+            Self::UnsafeRuntimeDirectory => "Nycti runtime directory path is unsafe",
             Self::UnsafeSocketPath => "window management socket path is unsafe",
             Self::AlreadyRunning => "window management listener is already running",
             Self::ExistingSocketCheckFailed => "existing socket could not be classified safely",
@@ -174,7 +174,7 @@ impl UnixRuntimeListener {
     }
 
     fn bind(root: &ValidatedRuntimeRoot) -> Result<Self, UnixRuntimeError> {
-        let runtime_directory = prepare_clea_directory(root)?;
+        let runtime_directory = prepare_nycti_directory(root)?;
         let socket_path = runtime_directory.join(WINDOW_MANAGEMENT_SOCKET);
 
         prepare_existing_socket_path(&socket_path)?;
@@ -301,32 +301,32 @@ fn permission_mode(metadata: &Metadata) -> u32 {
     metadata.permissions().mode() & PERMISSION_BITS
 }
 
-fn prepare_clea_directory(root: &ValidatedRuntimeRoot) -> Result<PathBuf, UnixRuntimeError> {
-    let path = root.as_path().join(CLEA_RUNTIME_DIRECTORY);
+fn prepare_nycti_directory(root: &ValidatedRuntimeRoot) -> Result<PathBuf, UnixRuntimeError> {
+    let path = root.as_path().join(NYCTI_RUNTIME_DIRECTORY);
     let metadata = match fs::symlink_metadata(&path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            match create_clea_directory(&path) {
+            match create_nycti_directory(&path) {
                 Ok(()) => {}
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(_) => return Err(UnixRuntimeError::RuntimeDirectorySetupFailed),
             }
-            inspect_clea_directory(&path)?
+            inspect_nycti_directory(&path)?
         }
         Err(_) => return Err(UnixRuntimeError::RuntimeDirectorySetupFailed),
     };
 
-    normalize_clea_directory(&path, &metadata)?;
+    normalize_nycti_directory(&path, &metadata)?;
     Ok(path)
 }
 
-fn create_clea_directory(path: &Path) -> io::Result<()> {
+fn create_nycti_directory(path: &Path) -> io::Result<()> {
     let mut builder = DirBuilder::new();
     builder.mode(RUNTIME_DIRECTORY_MODE);
     builder.create(path)
 }
 
-fn inspect_clea_directory(path: &Path) -> Result<Metadata, UnixRuntimeError> {
+fn inspect_nycti_directory(path: &Path) -> Result<Metadata, UnixRuntimeError> {
     let metadata =
         fs::symlink_metadata(path).map_err(|_| UnixRuntimeError::RuntimeDirectorySetupFailed)?;
     if metadata.file_type().is_symlink() || !metadata.file_type().is_dir() {
@@ -335,7 +335,7 @@ fn inspect_clea_directory(path: &Path) -> Result<Metadata, UnixRuntimeError> {
     Ok(metadata)
 }
 
-fn normalize_clea_directory(
+fn normalize_nycti_directory(
     path: &Path,
     initial_metadata: &Metadata,
 ) -> Result<(), UnixRuntimeError> {
@@ -347,7 +347,7 @@ fn normalize_clea_directory(
     fs::set_permissions(path, Permissions::from_mode(RUNTIME_DIRECTORY_MODE))
         .map_err(|_| UnixRuntimeError::RuntimeDirectorySetupFailed)?;
 
-    let final_metadata = inspect_clea_directory(path)?;
+    let final_metadata = inspect_nycti_directory(path)?;
     if (final_metadata.dev(), final_metadata.ino()) != initial_identity {
         return Err(UnixRuntimeError::UnsafeRuntimeDirectory);
     }
@@ -658,21 +658,21 @@ mod tests {
     }
 
     #[test]
-    fn absent_clea_directory_is_created() {
+    fn absent_nycti_directory_is_created() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
 
-        let path = prepare_clea_directory(&root).expect("CLEA directory should be prepared");
+        let path = prepare_nycti_directory(&root).expect("Nycti directory should be prepared");
 
         assert!(path.is_dir());
     }
 
     #[test]
-    fn newly_created_clea_directory_has_final_mode_0700() {
+    fn newly_created_nycti_directory_has_final_mode_0700() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
 
-        let path = prepare_clea_directory(&root).expect("CLEA directory should be prepared");
+        let path = prepare_nycti_directory(&root).expect("Nycti directory should be prepared");
 
         assert_eq!(
             permission_mode(&fs::symlink_metadata(path).expect("metadata should exist")),
@@ -681,25 +681,25 @@ mod tests {
     }
 
     #[test]
-    fn clea_directory_creation_is_not_broader_than_0700() {
+    fn nycti_directory_creation_is_not_broader_than_0700() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
-        let path = root.as_path().join(CLEA_RUNTIME_DIRECTORY);
+        let path = root.as_path().join(NYCTI_RUNTIME_DIRECTORY);
 
-        create_clea_directory(&path).expect("CLEA directory should be created");
+        create_nycti_directory(&path).expect("Nycti directory should be created");
         let mode = permission_mode(&fs::symlink_metadata(path).expect("metadata should exist"));
 
         assert_eq!(mode & !RUNTIME_DIRECTORY_MODE, 0);
     }
 
     #[test]
-    fn existing_real_clea_directory_is_normalized_to_0700() {
+    fn existing_real_nycti_directory_is_normalized_to_0700() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
-        let path = root.as_path().join(CLEA_RUNTIME_DIRECTORY);
+        let path = root.as_path().join(NYCTI_RUNTIME_DIRECTORY);
         create_directory_with_mode(&path, 0o755);
 
-        prepare_clea_directory(&root).expect("existing directory should be prepared");
+        prepare_nycti_directory(&root).expect("existing directory should be prepared");
 
         assert_eq!(
             permission_mode(&fs::symlink_metadata(path).expect("metadata should exist")),
@@ -708,15 +708,15 @@ mod tests {
     }
 
     #[test]
-    fn clea_symlink_is_rejected_and_preserved() {
+    fn nycti_symlink_is_rejected_and_preserved() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
         let target = area.create_valid_root("target");
-        let path = root.as_path().join(CLEA_RUNTIME_DIRECTORY);
-        symlink(target, &path).expect("CLEA symlink should be created");
+        let path = root.as_path().join(NYCTI_RUNTIME_DIRECTORY);
+        symlink(target, &path).expect("Nycti symlink should be created");
 
         assert_eq!(
-            prepare_clea_directory(&root),
+            prepare_nycti_directory(&root),
             Err(UnixRuntimeError::UnsafeRuntimeDirectory)
         );
         assert!(
@@ -728,14 +728,14 @@ mod tests {
     }
 
     #[test]
-    fn clea_regular_file_is_rejected_and_preserved() {
+    fn nycti_regular_file_is_rejected_and_preserved() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
-        let path = root.as_path().join(CLEA_RUNTIME_DIRECTORY);
+        let path = root.as_path().join(NYCTI_RUNTIME_DIRECTORY);
         fs::write(&path, b"preserve me").expect("test file should be created");
 
         assert_eq!(
-            prepare_clea_directory(&root),
+            prepare_nycti_directory(&root),
             Err(UnixRuntimeError::UnsafeRuntimeDirectory)
         );
         assert_eq!(fs::read(path).expect("file should remain"), b"preserve me");
@@ -789,7 +789,7 @@ mod tests {
     fn refused_real_socket_is_removed_and_rebound() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
-        let runtime_directory = prepare_clea_directory(&root).expect("directory should exist");
+        let runtime_directory = prepare_nycti_directory(&root).expect("directory should exist");
         let path = runtime_directory.join(WINDOW_MANAGEMENT_SOCKET);
         let stale_listener = UnixListener::bind(&path).expect("stale fixture should bind");
         drop(stale_listener);
@@ -811,7 +811,7 @@ mod tests {
     fn regular_file_at_socket_path_is_rejected_and_preserved() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
-        let runtime_directory = prepare_clea_directory(&root).expect("directory should exist");
+        let runtime_directory = prepare_nycti_directory(&root).expect("directory should exist");
         let path = runtime_directory.join(WINDOW_MANAGEMENT_SOCKET);
         fs::write(&path, b"preserve me").expect("test file should be created");
 
@@ -826,7 +826,7 @@ mod tests {
     fn symlink_at_socket_path_is_rejected_and_preserved() {
         let area = TestDirectory::new();
         let root = valid_root(&area, "runtime");
-        let runtime_directory = prepare_clea_directory(&root).expect("directory should exist");
+        let runtime_directory = prepare_nycti_directory(&root).expect("directory should exist");
         let target = runtime_directory.join("target");
         fs::write(&target, b"target").expect("target should be created");
         let path = runtime_directory.join(WINDOW_MANAGEMENT_SOCKET);
@@ -1003,7 +1003,7 @@ mod tests {
         let response: Value = serde_json::from_str(&output).expect("response should be JSON");
         assert_eq!(response["id"], "status");
         assert_eq!(response["ok"], true);
-        assert_eq!(response["result"]["service"], "clea-windowd");
+        assert_eq!(response["result"]["service"], "nycti-windowd");
     }
 
     #[test]

@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(responses.len(), 1);
         assert_eq!(responses[0]["id"], "status-1");
         assert_eq!(responses[0]["ok"], true);
-        assert_eq!(responses[0]["result"]["service"], "clea-windowd");
+        assert_eq!(responses[0]["result"]["service"], "nycti-windowd");
     }
 
     #[test]

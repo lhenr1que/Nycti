@@ -44,10 +44,10 @@ Protocol v1 uses:
 The socket path is:
 
 ```text
-$XDG_RUNTIME_DIR/clea/window-management.sock
+$XDG_RUNTIME_DIR/nycti/window-management.sock
 ```
 
-The daemon creates the `clea` parent directory when necessary. It must derive
+The daemon creates the `nycti` parent directory when necessary. It must derive
 the complete path from the current process environment. It must not use `/tmp`,
 hardcode a UID, or reuse a compositor socket.
 
@@ -289,7 +289,7 @@ Result:
 ```json
 {
   "protocol_version": 1,
-  "service": "clea-windowd"
+  "service": "nycti-windowd"
 }
 ```
 
@@ -614,7 +614,7 @@ Request:
 Response:
 
 ```json
-{"version":1,"id":"req-1","ok":true,"result":{"protocol_version":1,"service":"clea-windowd"}}
+{"version":1,"id":"req-1","ok":true,"result":{"protocol_version":1,"service":"nycti-windowd"}}
 ```
 
 ### 2. List workspaces

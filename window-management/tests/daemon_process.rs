@@ -61,7 +61,7 @@ impl TestDirectory {
     }
 
     fn socket(&self) -> PathBuf {
-        self.path.join("clea").join("window-management.sock")
+        self.path.join("nycti").join("window-management.sock")
     }
 }
 
@@ -258,7 +258,7 @@ fn serves_read_only_requests_and_stops_cleanly_on(signal: &str) {
     let mut client = Client::connect(&directory.socket());
 
     let status = client.call("status");
-    assert_eq!(status["result"]["service"], "clea-windowd");
+    assert_eq!(status["result"]["service"], "nycti-windowd");
     let workspaces = client.call("list_workspaces");
     assert_eq!(
         workspaces["result"]["workspaces"]
@@ -360,9 +360,12 @@ fn a_second_daemon_exits_with_two_and_leaves_the_first_running() {
 fn a_stale_socket_is_recovered_at_startup() {
     let directory = TestDirectory::new(0o700);
     start_fake_hyprland(directory.path(), None, None);
-    fs::create_dir(directory.path().join("clea")).expect("clea directory should be created");
-    fs::set_permissions(directory.path().join("clea"), Permissions::from_mode(0o700))
-        .expect("clea directory mode should be set");
+    fs::create_dir(directory.path().join("nycti")).expect("nycti directory should be created");
+    fs::set_permissions(
+        directory.path().join("nycti"),
+        Permissions::from_mode(0o700),
+    )
+    .expect("nycti directory mode should be set");
     // A listener that is gone leaves its socket file on disk.
     drop(UnixListener::bind(directory.socket()).expect("stale socket should bind"));
     assert!(directory.socket().exists());

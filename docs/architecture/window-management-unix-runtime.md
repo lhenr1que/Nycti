@@ -10,7 +10,7 @@ boundary to the existing synchronous JSON Lines transport.
 The adapter is responsible only for:
 
 - resolving the per-user runtime root;
-- preparing the CLEA runtime directory;
+- preparing the Nycti runtime directory;
 - classifying an existing socket path;
 - recovering a narrowly defined stale socket;
 - binding and protecting a `UnixListener`;
@@ -64,12 +64,12 @@ responses, or call `WindowManager` or `WindowBackend` directly.
 
 ## Normative paths
 
-The production runtime root is taken only from `XDG_RUNTIME_DIR`. The CLEA
+The production runtime root is taken only from `XDG_RUNTIME_DIR`. The Nycti
 runtime directory and Window Management socket are:
 
 ```text
-$XDG_RUNTIME_DIR/clea
-$XDG_RUNTIME_DIR/clea/window-management.sock
+$XDG_RUNTIME_DIR/nycti
+$XDG_RUNTIME_DIR/nycti/window-management.sock
 ```
 
 The daemon must not use any of the following as a fallback or substitute:
@@ -86,7 +86,7 @@ do not change production path resolution.
 ## Resolving `XDG_RUNTIME_DIR`
 
 Production startup resolves `XDG_RUNTIME_DIR` from the current process
-environment. Before preparing the child `clea` directory, the runtime root must
+environment. Before preparing the child `nycti` directory, the runtime root must
 satisfy all of these requirements:
 
 1. the environment value is present;
@@ -104,7 +104,7 @@ causes startup to fail.
 
 The resolver must not require UTF-8 when the platform path representation can
 carry the environment value losslessly. It must not canonicalize the complete
-future path as a prerequisite for startup: `$XDG_RUNTIME_DIR/clea` is allowed
+future path as a prerequisite for startup: `$XDG_RUNTIME_DIR/nycti` is allowed
 not to exist yet and is created by the next stage. Validation applies directly
 to the supplied runtime-root path without following a symlink at its final
 component.
@@ -127,15 +127,15 @@ the socket name onto an unchecked or relative path. Such a type is an
 implementation detail and does not make arbitrary production roots part of the
 daemon's public interface.
 
-## Preparing the CLEA runtime directory
+## Preparing the Nycti runtime directory
 
-The daemon uses the direct child named `clea` under the validated runtime root.
+The daemon uses the direct child named `nycti` under the validated runtime root.
 It must inspect this path without following its final component, conceptually
 using `symlink_metadata`.
 
 ### Path absent
 
-On Unix, create the `clea` directory with requested mode `0700` from the start,
+On Unix, create the `nycti` directory with requested mode `0700` from the start,
 conceptually using:
 
 ```text
@@ -158,14 +158,14 @@ an existing path rather than assuming it is safe.
 
 ### Existing real directory
 
-Continue only when the final `clea` path is a real directory and not a symlink.
+Continue only when the final `nycti` path is a real directory and not a symlink.
 Its permission bits must be set to `0700`. If it already has another mode, the
 daemon may normalize it to `0700`, then verify that the expected real directory
 still occupies the path.
 
 ### Existing unsafe object
 
-Startup fails if `clea` is any of the following:
+Startup fails if `nycti` is any of the following:
 
 - a symbolic link, including one whose target is a directory;
 - a regular file;
@@ -175,11 +175,11 @@ Startup fails if `clea` is any of the following:
 - any other non-directory object.
 
 The daemon must not remove or replace such an object automatically. It must not
-silently follow a symlink at the `clea` path.
+silently follow a symlink at the `nycti` path.
 
 ### Directory permissions
 
-The final mode of the real CLEA runtime directory is:
+The final mode of the real Nycti runtime directory is:
 
 ```text
 0700
@@ -191,7 +191,7 @@ and explicit socket permission normalization. The daemon does not modify the
 mode of `XDG_RUNTIME_DIR` itself.
 
 Requesting `0700` at directory creation eliminates a potentially permissive
-create-to-chmod interval for `clea`. This differs from the socket itself: the
+create-to-chmod interval for `nycti`. This differs from the socket itself: the
 first socket implementation may still rely on the already verified `0700`
 parent directory during its short bind-to-chmod interval. No `libc` dependency
 is needed for either rule.
@@ -199,7 +199,7 @@ is needed for either rule.
 ## Inspecting an existing socket path
 
 Before bind, the adapter inspects
-`$XDG_RUNTIME_DIR/clea/window-management.sock` without following a symbolic
+`$XDG_RUNTIME_DIR/nycti/window-management.sock` without following a symbolic
 link, conceptually using `symlink_metadata`.
 
 ### Path absent
@@ -292,7 +292,7 @@ that may have been created by the process that won the race.
 
 ## Binding and socket permissions
 
-The adapter binds only after the CLEA directory has been verified as a real
+The adapter binds only after the Nycti directory has been verified as a real
 directory with mode `0700` and the existing-path procedure has completed.
 
 After successful `UnixListener::bind`, the adapter must:
@@ -454,8 +454,8 @@ categories and distinctions are required:
 |---|---|
 | `RuntimeDirUnavailable` | `XDG_RUNTIME_DIR` is absent or empty, or an operational failure prevents obtaining required metadata for it. |
 | `InvalidRuntimeDir` | The resolved path is relative or nonexistent, or no-follow inspection shows that its final component is a symlink, is not a directory, has a mode other than `0700`, or otherwise structurally fails the runtime-root requirements. |
-| `RuntimeDirectorySetupFailed` | Creating, inspecting, or setting required permissions on the CLEA directory failed operationally. |
-| `UnsafeRuntimeDirectory` | The `clea` path is a symlink or another unexpected non-directory object. |
+| `RuntimeDirectorySetupFailed` | Creating, inspecting, or setting required permissions on the Nycti directory failed operationally. |
+| `UnsafeRuntimeDirectory` | The `nycti` path is a symlink or another unexpected non-directory object. |
 | `UnsafeSocketPath` | The socket pathname contains an existing non-socket object, symlink, or changed identity that must not be removed. |
 | `AlreadyRunning` | The existing Unix socket accepted a connect probe. |
 | `ExistingSocketCheckFailed` | A real socket could not be classified because connect failed with an error other than `ConnectionRefused` or race-related `NotFound`. |
@@ -520,11 +520,11 @@ The Unix runtime implementation must test at least:
 6. a valid runtime root;
 7. rejection of `XDG_RUNTIME_DIR` when its final component is a symlink;
 8. rejection of an `XDG_RUNTIME_DIR` mode other than `0700`, without chmod;
-9. creation of `clea/` with requested mode `0700` from the creation operation;
-10. verified final mode `0700` on `clea/`;
-11. an existing real `clea/` directory;
-12. rejection of `clea/` as a symlink;
-13. rejection of `clea/` as a regular file;
+9. creation of `nycti/` with requested mode `0700` from the creation operation;
+10. verified final mode `0700` on `nycti/`;
+11. an existing real `nycti/` directory;
+12. rejection of `nycti/` as a symlink;
+13. rejection of `nycti/` as a regular file;
 14. bind when the socket path is absent;
 15. mode `0600` on the bound socket;
 16. `AlreadyRunning` for an existing socket with an active listener;
@@ -567,13 +567,13 @@ This specification does not decide or implement:
 A future Unix runtime adapter conforms to this specification when it:
 
 1. derives the production socket only as
-   `$XDG_RUNTIME_DIR/clea/window-management.sock`;
+   `$XDG_RUNTIME_DIR/nycti/window-management.sock`;
 2. fails startup for a missing, empty, relative, inaccessible, or unusable
    runtime root and never falls back to `/tmp`;
 3. requires the production runtime root itself to exist as a real, non-symlink
    directory with mode `0700`;
 4. never changes permissions on `XDG_RUNTIME_DIR` itself;
-5. requests mode `0700` when creating `clea/`, then re-inspects the path and
+5. requests mode `0700` when creating `nycti/`, then re-inspects the path and
    verifies its final mode is exactly `0700`;
 6. never replaces or removes a non-socket object or symlink at the socket path;
 7. never replaces or removes the socket of an active daemon;
