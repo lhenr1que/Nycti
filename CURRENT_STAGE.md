@@ -14,8 +14,9 @@
   the new one. There is no compatibility layer, and the new daemon does not
   remove the old `$XDG_RUNTIME_DIR/clea/` directory; remove it manually.
 - ADRs 0001 to 0008 and earlier commit subjects keep the old name.
-- The name of a future CLI is still open (to be closed by ADR 0010). No
-  trademark search was done for the name Nycti.
+- The CLI is named `nycti`, as recorded in
+  [ADR 0010](docs/architecture/adr/0010-window-management-cli.md) (Proposed).
+  No trademark search was done for the name Nycti.
 - The test baseline did not change with the rename: **244 passed, 0 failed,
   3 ignored** at each rename commit; the ignored tests were not run.
 
@@ -127,6 +128,53 @@ the project; the project's tooling did not run it. Observed:
 - Only read methods were exercised. The methods that change state were not
   exercised in this validation; automated tests cover them.
 
+## Command-line client (`nycti`)
+
+Implemented on branch `feature/window-management-core` in seven local commits (not
+pushed at the time of writing) and described by
+[ADR 0010](docs/architecture/adr/0010-window-management-cli.md) (Proposed):
+
+- A second binary of the package `nycti-windowd` (`src/bin/nycti.rs`, thin) and
+  the library module `client` (`wire`, `args`, `connection`, `output`, `run`).
+  It speaks protocol v1 over `$XDG_RUNTIME_DIR/nycti/window-management.sock`, one
+  connection per command, with no new dependency (`Cargo.lock` is unchanged). It
+  does not use `hyprctl` and does not import the Hyprland backend.
+- Commands, one per protocol method: `nycti wm query <status | get-default-mode |
+  list-workspaces | get-workspace-mode WORKSPACE | list-windows>` and `nycti wm
+  change <set-default-mode MODE | set-workspace-mode WORKSPACE MODE |
+  clear-workspace-mode WORKSPACE | apply-workspace-mode WORKSPACE --yes>`, with
+  `--json`, `--timeout SECONDS`, `--dry-run`, and `--help`. `--yes` is required
+  by `apply-workspace-mode` only. Tokens are passed exactly as the daemon printed
+  them. There is no `toggle` command.
+- Exit codes (provisional): 0 success, 1 internal failure, 2 incorrect usage,
+  3 daemon unavailable, 4 protocol error from the daemon, 5 communication
+  failure. Timeouts: 5 s to connect and write, 10 s for the response; the
+  response line is limited to 8 MiB.
+- Small changes outside the client: `Deserialize` on the protocol enums and
+  result structs (the wire format is unchanged), `StatusResult.service` as
+  `Cow<'static, str>`, and `daemon::test_support` as `pub(crate)` (test code
+  only).
+- Automated validation: package tests passed with **321 passed, 0 failed, 3
+  ignored** (77 new tests: 70 library tests in `client::` and 7 process-level
+  tests in `tests/cli_process.rs`); the whole suite was repeated 30 times without
+  a failure and with no daemon left running. `cargo check`, formatting
+  verification, and all-target Clippy with `-D warnings` also passed without
+  warnings. Each of the first six commits (the seventh only changes documentation)
+  was also checked out alone with `git archive` and passed `check`, `build`,
+  `test`, `fmt --check`, and Clippy with `--locked --offline`, with no warning. The process-level tests run
+  `nycti` against the real `nycti-windowd` binary and a fake Hyprland that refuses
+  `/dispatch`; they never touch a real Hyprland session. Three library tests (one in
+  `client::connection`, two in `client::run`, one of them through `--timeout`) wait
+  for a real short timeout (about 150 ms) and are time-dependent; they are
+  protected by the guard limit.
+- Not validated: the effect of `apply-workspace-mode` through `nycti` on a real
+  Hyprland session. A manual script was prepared for the maintainer; it has not
+  been run.
+- Not tested: the connect timeout with a full listener backlog, the race between
+  the daemon closing the connection and answering, and `PermissionDenied` caused
+  by a socket owned by another user. The permission-denied test simulates the
+  case with a socket of mode 000 and does nothing when run by a privileged user.
+
 Validated commands, run from the repository root:
 
 ```sh
@@ -229,6 +277,7 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   shutdown step failed, 7 forced exit. When the coordinator stops, the signal
   source is closed and the signal thread is joined. The compositor is not probed
   at startup.
+- Command-line client `nycti`: see "Command-line client (`nycti`)" above.
 - `signal-hook` 0.3.18 (`default-features = false`, feature `iterator`) is the one
   new dependency; it adds `signal-hook-registry` 1.4.5 and `libc` 0.2.174 to
   `Cargo.lock`, and no existing package changed version. Licenses, read from the
@@ -329,6 +378,19 @@ step must be planned and authorized before it starts.
   failure to create the signal thread. The behavior of `signal-hook` with
   `SIGTERM` and `SIGINT` was validated manually on a real Hyprland session on
   2026-09-30, but neither the second signal nor `SIGHUP` was.
+- The CLI name `nycti` and its placement in the `nycti-windowd` package are
+  provisional; extracting the client into its own crate is a declared debt for
+  when a second client appears. Its output text and exit codes are provisional
+  and promise no stability.
+- The CLI connects on a helper thread to get a connect timeout, because the
+  standard library has none for Unix sockets (provisional workaround).
+- Tokens are not valid across a daemon restart, and protocol v1 has no "active
+  workspace", so the CLI cannot offer a command for the current workspace, which
+  blocks a future keyboard shortcut. There is no `toggle` command.
+- The daemon has no read timeout, so a client that connects and sends nothing
+  holds a worker until it closes.
+- `tests/cli_process.rs` repeats helpers of `tests/daemon_process.rs`, because each
+  integration test is its own crate; extracting a shared module is future work.
 - Persistence, supervision, and compatibility with other Hyprland versions remain
   future work.
 
