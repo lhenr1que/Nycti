@@ -594,8 +594,8 @@ mod tests {
     #[ignore = "mutates a live Hyprland workspace"]
     fn live_window_manager_windows_and_tiling_smoke_test() {
         assert!(
-            matches!(env::var("CLEA_LIVE_MANAGER_TEST").as_deref(), Ok("1")),
-            "live WindowManager smoke test is disabled; set CLEA_LIVE_MANAGER_TEST=1 and invoke this ignored test explicitly"
+            matches!(env::var("NYCTI_LIVE_MANAGER_TEST").as_deref(), Ok("1")),
+            "live WindowManager smoke test is disabled; set NYCTI_LIVE_MANAGER_TEST=1 and invoke this ignored test explicitly"
         );
 
         let mut backend = HyprlandBackend::from_env()

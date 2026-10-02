@@ -45,8 +45,8 @@ fn live_read_only_snapshot_smoke_test() {
 #[ignore = "mutates a live Hyprland window"]
 fn live_action_focus_and_restore_placement_smoke_test() {
     assert!(
-        matches!(env::var("CLEA_LIVE_ACTION_TEST").as_deref(), Ok("1")),
-        "live action smoke test is disabled; set CLEA_LIVE_ACTION_TEST=1 and invoke this ignored test explicitly"
+        matches!(env::var("NYCTI_LIVE_ACTION_TEST").as_deref(), Ok("1")),
+        "live action smoke test is disabled; set NYCTI_LIVE_ACTION_TEST=1 and invoke this ignored test explicitly"
     );
 
     let mut backend = HyprlandBackend::from_env()
