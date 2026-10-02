@@ -33,10 +33,11 @@ commits that follow this ADR.
 | Live action test variable | `CLEA_LIVE_ACTION_TEST` | `NYCTI_LIVE_ACTION_TEST` |
 | Live manager test variable | `CLEA_LIVE_MANAGER_TEST` | `NYCTI_LIVE_MANAGER_TEST` |
 | Stderr line prefix (provisional) | `clea-windowd:` | `nycti-windowd:` |
-| Repository | `lhenr1que/clea-desktop` | `https://github.com/lhenr1que/nycti` |
-| Local folder | `/home/lhen/clea-desktop` | unchanged |
+| Repository | `https://github.com/lhenr1que/clea-desktop` | `https://github.com/lhenr1que/nycti` |
+| Local folder | `/home/lhen/clea-desktop` | not covered by this ADR |
 
-The local folder keeps its name. Renaming it is outside this decision.
+The local folder name is not covered by this decision and may change
+independently.
 
 ### Contract changes
 
@@ -60,8 +61,9 @@ The local folder keeps its name. Renaming it is outside this decision.
 - There is no compatibility layer: no alias for the old socket directory, no
   acceptance of the old environment variables, no old `status.service` value.
 - The new daemon does not remove the old `$XDG_RUNTIME_DIR/clea/` directory.
-  Removing it is a manual step. The directory lives in a tmpfs and disappears
-  at the end of the user session.
+  Removing it is a manual step. The directory is typically on a tmpfs and is
+  removed when the user session ends, unless the system keeps the session
+  alive.
 
 ### Name notice
 
