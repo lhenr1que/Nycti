@@ -1,6 +1,7 @@
 //! Core library for Nycti Window Management.
 
 pub mod backend;
+pub mod client;
 pub mod core;
 pub mod daemon;
 pub mod protocol;
