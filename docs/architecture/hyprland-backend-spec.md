@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document specifies the first Hyprland-specific adapter work for CLEA
+This document specifies the first Hyprland-specific adapter work for Nycti
 Window Management. It refines the compositor-independent
 `WindowBackend` contract without changing that contract, the Window Management
 functional contract, or their ownership boundaries.
@@ -145,8 +145,8 @@ Hyprland identities must not escape through the compositor-independent API.
 The existing public representations of `WindowId` and `WorkspaceId` remain
 unchanged by this specification.
 
-The adapter may allocate backend-local CLEA IDs and retain private maps between
-those IDs and Hyprland identities. The core can compare and return opaque CLEA
+The adapter may allocate backend-local Nycti IDs and retain private maps between
+those IDs and Hyprland identities. The core can compare and return opaque Nycti
 IDs but cannot construct them from Hyprland data or extract Hyprland data from
 them.
 
@@ -156,7 +156,7 @@ them.
 address. The conceptual private association is:
 
 ```text
-CLEA WindowId
+Nycti WindowId
     -> HyprlandWindowIdentity {
            stable_id,
            address,
@@ -173,8 +173,8 @@ For Hyprland 0.56.2:
 
 `stableId` is the primary identity for correlating entries across query
 snapshots. When a previously known `stableId` remains present, it retains its
-backend-local CLEA `WindowId`. Different simultaneously observed `stableId`
-values must receive different CLEA `WindowId` values.
+backend-local Nycti `WindowId`. Different simultaneously observed `stableId`
+values must receive different Nycti `WindowId` values.
 
 `address` is retained as a secondary handle because:
 
@@ -190,7 +190,7 @@ identity ambiguously matching multiple clients, is not a successful normalized
 snapshot.
 
 No persistence or cross-session meaning is assigned to this mapping. In
-particular, the adapter must not assume that a Hyprland `stableId` or a CLEA
+particular, the adapter must not assume that a Hyprland `stableId` or a Nycti
 `WindowId` survives:
 
 - closing and reopening a window;
@@ -207,16 +207,16 @@ Hyprland `workspace.id` is the primary native workspace identity observed for
 the target version. The conceptual private association is:
 
 ```text
-CLEA WorkspaceId
+Nycti WorkspaceId
     -> Hyprland workspace.id
 ```
 
-The adapter allocates or looks up an opaque CLEA `WorkspaceId` for a native
+The adapter allocates or looks up an opaque Nycti `WorkspaceId` for a native
 workspace ID. It must not use `workspace.name` as the primary identity and must
 not expose the native numeric ID to the core.
 
 The adapter may encounter a workspace ID through either `j/workspaces` or a
-client's `workspace.id`; the same native ID must map to the same CLEA identity
+client's `workspace.id`; the same native ID must map to the same Nycti identity
 within the applicable backend-local lifetime.
 
 No complete semantics for special-workspace IDs are selected. In particular,
@@ -228,13 +228,13 @@ lifetime rule for special workspaces.
 `j/workspaces` returns a JSON array. For each valid entry in a successful
 response, the read-only source produces one `WorkspaceObservation` with:
 
-- the opaque CLEA `WorkspaceId` associated with Hyprland `workspace.id`; and
+- the opaque Nycti `WorkspaceId` associated with Hyprland `workspace.id`; and
 - `present = true`.
 
 Only entries in the current response are returned. Retaining observations for
 workspaces that disappeared is outside the first implementation. Workspace
 mode is not read from Hyprland because default, explicit, and effective modes
-are CLEA-owned policy.
+are Nycti-owned policy.
 
 Workspace name, monitor, window count, last window, persistence, fullscreen
 summary, and layout name are not part of the first normalized observation.
@@ -276,7 +276,7 @@ The first normalized API does not use or expose:
 
 Such fields may appear in private wire structs only if technically necessary
 for safe parsing. Their mere presence in Hyprland responses does not make them
-part of CLEA's normalized model.
+part of Nycti's normalized model.
 
 ## Fullscreen normalization
 
@@ -292,7 +292,7 @@ as a boolean. The first normalization is:
 
 Value `1` represents maximized state in the locally inspected Hyprland 0.56.2
 enum and therefore must not be confused with fullscreen. This specification
-does not add maximized state to the CLEA backend model.
+does not add maximized state to the Nycti backend model.
 
 The normalization uses Hyprland's internal `fullscreen` field.
 `fullscreenClient` does not determine `WindowObservation::is_fullscreen()` in
@@ -339,7 +339,7 @@ Hyprland 0.56.2 has locally evidenced capabilities for:
 - selecting a window with `stableid:`; and
 - selecting a window with `address:`.
 
-The eventual backend translation must preserve CLEA's declarative semantics:
+The eventual backend translation must preserve Nycti's declarative semantics:
 
 ```text
 ensure_floating(window) -> ensure the final state is floating
@@ -443,7 +443,7 @@ The read-only implementation is acceptable when tests demonstrate that:
 11. neither `stableId` nor `address` escapes to the core-facing observation
     API;
 12. two simultaneously observed windows with different `stableId` values
-    receive distinct CLEA `WindowId` values;
+    receive distinct Nycti `WindowId` values;
 13. `stableId` is the primary identity used to correlate query snapshots;
 14. `address` remains privately available for future event correlation;
 15. fixture-based read-only tests require no running Hyprland when JSON

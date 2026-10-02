@@ -1,9 +1,28 @@
 # Current Stage
 
+## Rename from CLEA to Nycti
+
+- The project was renamed from CLEA to Nycti on 2026-10-01
+  ([ADR 0009](docs/architecture/adr/0009-rename-project-to-nycti.md)). The
+  local folder `clea-desktop` was not renamed.
+- Renamed: the package and binary (`nycti-windowd`), the library
+  (`nycti_windowd`), the stderr prefix, the runtime directory
+  (`$XDG_RUNTIME_DIR/nycti/`), the `status.service` value (`"nycti-windowd"`),
+  and the live-test variables (`NYCTI_LIVE_ACTION_TEST`,
+  `NYCTI_LIVE_MANAGER_TEST`). The old variables enable no test.
+- Transition rule: stop any daemon started under the old name before starting
+  the new one. There is no compatibility layer, and the new daemon does not
+  remove the old `$XDG_RUNTIME_DIR/clea/` directory; remove it manually.
+- ADRs 0001 to 0008 and earlier commit subjects keep the old name.
+- The name of a future CLI is still open (to be closed by ADR 0010). No
+  trademark search was done for the name Nycti.
+- The test baseline did not change with the rename: **244 passed, 0 failed,
+  3 ignored** at each rename commit; the ignored tests were not run.
+
 ## Repository and validated baseline
 
 - Branch at validation: `feature/window-management-core`.
-- Rust package: `clea-windowd`, in `window-management/Cargo.toml`; there is no
+- Rust package: `nycti-windowd`, in `window-management/Cargo.toml`; there is no
   separate root Cargo manifest or multi-package workspace.
 - Implementation baseline: commit `974f27de0a45a6f217826ac99314c0198bfb7861`.
 - Validation date: 2026-09-29, using Rust and Cargo **1.98.1**.
@@ -69,7 +88,7 @@ tests were repeated 30 times, and the whole suite 30 times, without a failure an
 with no daemon left running. `cargo check`, formatting verification, and
 all-target Clippy also passed without warnings. The suite passed inside the
 sandbox, and the ignored tests were not run. The process-level tests start the
-real `clea-windowd` binary as a child process with a cleared environment, a
+real `nycti-windowd` binary as a child process with a cleared environment, a
 private runtime directory, and a fake Hyprland socket serving the recorded
 fixtures; they signal only their own child process, through `/usr/bin/kill`
 (a dependency of the test environment), and never touch a real Hyprland session.
@@ -141,7 +160,7 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
   contains a panicking hook so it cannot abort the process. `Authority::spawn`
   keeps its signature and behavior and delegates to the same code without a hook.
 - Connection worker (`daemon::spawn_worker`): one thread named
-  `clea-windowd-worker` that serves one accepted `UnixStream` through
+  `nycti-windowd-worker` that serves one accepted `UnixStream` through
   `serve_unix_connection_with_handler`, forwarding each request line to an
   `AuthorityClient`. It implements no framing and never sees the service or the
   backend. The thread returns a `WorkerExit` (`Completed`, `Transport`,
@@ -158,7 +177,7 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
 - Daemon coordinator (`daemon::Coordinator`, [ADR 0007](docs/architecture/adr/0007-window-management-daemon-coordinator.md),
   status Accepted): `Coordinator::start` takes the bound `UnixRuntimeListener`
   and the built service, starts the authority, and runs an accept thread named
-  `clea-windowd-accept` that owns the listener, the authority, and the worker
+  `nycti-windowd-accept` that owns the listener, the authority, and the worker
   handles. It starts one worker per accepted stream, reaps finished workers on
   each accept, and closes a connection whose worker cannot be created. A
   cloneable `ShutdownHandle` queues a lifecycle event and wakes the blocked
@@ -175,7 +194,7 @@ cargo clippy --manifest-path window-management/Cargo.toml --workspace --all-targ
 - `BackendError` implements `Display` and `std::error::Error`, with English
   messages that do not expose backend identities.
 - Daemon executable ([ADR 0008](docs/architecture/adr/0008-window-management-daemon-signals.md),
-  status Accepted): `clea-windowd` registers `SIGTERM` and `SIGINT` through
+  status Accepted): `nycti-windowd` registers `SIGTERM` and `SIGINT` through
   `signal-hook` before anything is bound, then `daemon::run_from_env` binds the
   service socket from `XDG_RUNTIME_DIR`, constructs the Hyprland backend from the
   session environment, builds the manager (default mode `Tiling`) and the

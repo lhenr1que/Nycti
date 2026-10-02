@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document defines the first functional contract for CLEA Window Management.
+This document defines the first functional contract for Nycti Window Management.
 It specifies observable behavior and ownership boundaries without selecting an
 implementation language, IPC transport, process model, persistence format, or
 Hyprland integration mechanism.
@@ -26,13 +26,13 @@ Each workspace has exactly one effective mode at runtime:
 ### `tiling`
 
 Ordinary, policy-managed windows in the workspace are expected to participate
-in tiled layout. The mode describes CLEA policy; it is not a direct exposure of
+in tiled layout. The mode describes Nycti policy; it is not a direct exposure of
 a compositor-specific setting.
 
 ### `windows`
 
 Ordinary, policy-managed windows in the workspace are expected to be floating
-and independently positionable. The mode name is part of the CLEA contract and
+and independently positionable. The mode name is part of the Nycti contract and
 does not imply a specific compositor command, geometry policy, or
 implementation.
 
@@ -232,7 +232,7 @@ in the workspace whose mode is being changed and whose placement is `tiled` or
 When changing a workspace from effective `tiling` mode to explicit `windows`
 mode:
 
-1. CLEA identifies the in-scope windows belonging to that workspace.
+1. Nycti identifies the in-scope windows belonging to that workspace.
 2. Every fullscreen window in that workspace remains fullscreen and is not
    toggled out of fullscreen as an intermediate step.
 3. Each in-scope, non-fullscreen tiled window in that workspace becomes
@@ -250,7 +250,7 @@ size, position, stacking order, workspace movement, or geometry restoration.
 When changing a workspace from effective `windows` mode to explicit `tiling`
 mode:
 
-1. CLEA identifies the in-scope windows belonging to that workspace.
+1. Nycti identifies the in-scope windows belonging to that workspace.
 2. Every fullscreen window in that workspace remains fullscreen and is not
    toggled out of fullscreen as an intermediate step.
 3. Each in-scope, non-fullscreen floating window in that workspace becomes
@@ -314,9 +314,9 @@ workspace identifiers, names, addresses, commands, events, and wire formats stop
 at the backend boundary. Whether Hyprland directly supplies a maximized or
 minimized concept is not assumed by this contract.
 
-### State and policy maintained by CLEA
+### State and policy maintained by Nycti
 
-CLEA owns:
+Nycti owns:
 
 - the default workspace mode;
 - the optional explicit mode associated with each workspace;
@@ -327,7 +327,7 @@ CLEA owns:
 - normalization of compositor observations into client-facing workspace and
   window state;
 - enforcement of workspace isolation and the fullscreen invariant; and
-- future exception rules and any CLEA-specific maximize or minimize semantics.
+- future exception rules and any Nycti-specific maximize or minimize semantics.
 
 Clients may query this state and request operations, but do not own or apply the
 policy themselves.

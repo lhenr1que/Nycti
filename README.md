@@ -1,6 +1,6 @@
-# CLEA Desktop
+# Nycti Desktop
 
-CLEA is a modular desktop environment for Hyprland. Its shell is built with
+Nycti is a modular desktop environment for Hyprland. Its shell is built with
 Caelestia as the primary upstream, while keeping system policy outside the
 presentation layer.
 

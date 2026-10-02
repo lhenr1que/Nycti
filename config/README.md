@@ -1,6 +1,6 @@
 # Configuration
 
-Configuration owns CLEA's configuration contracts. Every supported
+Configuration owns Nycti's configuration contracts. Every supported
 configuration format must have an explicit schema and version so consumers can
 validate compatibility and evolve safely.
 

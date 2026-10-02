@@ -1,9 +1,9 @@
-# CLEA Window Management Protocol v1
+# Nycti Window Management Protocol v1
 
 ## Status and scope
 
-This document specifies version 1 of the client protocol for `clea-windowd`.
-The protocol is used by the CLEA Shell, Settings, and future command-line
+This document specifies version 1 of the client protocol for `nycti-windowd`.
+The protocol is used by the Nycti Shell, Settings, and future command-line
 clients to query and change Window Management state without owning policy or
 communicating directly with a compositor.
 
@@ -12,9 +12,9 @@ The architectural boundary is:
 ```text
 Shell / Settings / CLI
         |
-        | CLEA Window Management Protocol v1
+        | Nycti Window Management Protocol v1
         v
-clea-windowd
+nycti-windowd
         |
         v
 WindowManager
@@ -23,7 +23,7 @@ WindowManager
 WindowBackend
 ```
 
-`clea-windowd` is the authority for the default workspace mode, explicit
+`nycti-windowd` is the authority for the default workspace mode, explicit
 workspace modes, effective-mode resolution, and application of placement
 policy. Clients request operations and display results; they do not reproduce
 the planner or issue compositor commands.
@@ -109,7 +109,7 @@ The canonical placement values are exactly:
 ## Opaque identities
 
 Workspace and window identities are non-empty JSON strings issued by
-`clea-windowd`. Examples in this document use:
+`nycti-windowd`. Examples in this document use:
 
 ```json
 {
@@ -513,7 +513,7 @@ Result:
 }
 ```
 
-Array order is unspecified. Each entry contains only normalized CLEA state:
+Array order is unspecified. Each entry contains only normalized Nycti state:
 
 - opaque `window_id`;
 - opaque containing `workspace_id`;

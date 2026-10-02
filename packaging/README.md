@@ -1,6 +1,6 @@
 # Packaging
 
-Packaging owns the metadata and integration needed to distribute CLEA's
+Packaging owns the metadata and integration needed to distribute Nycti's
 components while preserving their architectural boundaries and independent
 replaceability.
 

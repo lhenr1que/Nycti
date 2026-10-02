@@ -13,7 +13,7 @@ applies policy.
 
 ## 3. Hyprland is behind a backend boundary
 
-All direct Hyprland interaction must be isolated behind CLEA-owned interfaces
+All direct Hyprland interaction must be isolated behind Nycti-owned interfaces
 and a dedicated backend. Clients must not depend on compositor-specific commands
 or wire formats.
 
@@ -31,12 +31,12 @@ validation and compatibility rather than relying on undocumented structure.
 ## 6. Caelestia is the primary shell upstream
 
 Shell architecture and upstream maintenance should favor continued alignment
-with Caelestia. CLEA-specific work should avoid unnecessary divergence.
+with Caelestia. Nycti-specific work should avoid unnecessary divergence.
 
 ## 7. Midnight Shell is a selective reference
 
 Midnight Shell may inform individual features, but it is not a second upstream
-to merge wholesale. Any port must be isolated, reviewed against CLEA's
+to merge wholesale. Any port must be isolated, reviewed against Nycti's
 boundaries, documented, and tested.
 
 ## 8. Preserve fullscreen state

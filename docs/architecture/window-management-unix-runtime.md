@@ -1,8 +1,8 @@
-# CLEA Window Management Unix Runtime
+# Nycti Window Management Unix Runtime
 
 ## Status and scope
 
-This document specifies the local Unix runtime adapter for `clea-windowd`. It
+This document specifies the local Unix runtime adapter for `nycti-windowd`. It
 narrows the runtime and socket decisions in
 [ADR 0005](adr/0005-window-management-runtime.md) and connects the Unix socket
 boundary to the existing synchronous JSON Lines transport.

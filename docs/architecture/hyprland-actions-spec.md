@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document specifies the first translation from CLEA's synchronous
+This document specifies the first translation from Nycti's synchronous
 `WindowBackend` action semantics to native Hyprland request-socket actions. It
 covers exactly:
 
@@ -23,7 +23,7 @@ selectors, responses, and action semantics.
 This document refines the Hyprland adapter without changing the
 compositor-independent `WindowBackend` contract, the Window Management
 functional contract, or the runtime ownership established by ADR 0005. The
-Window Management core continues to express desired outcomes with opaque CLEA
+Window Management core continues to express desired outcomes with opaque Nycti
 identities. Hyprland-specific identities, payloads, sockets, and response
 details remain private to the adapter.
 
@@ -32,7 +32,7 @@ details remain private to the adapter.
 The translation boundary is:
 
 ```text
-CLEA WindowBackend action
+Nycti WindowBackend action
         |
         v
 private Hyprland identity lookup
@@ -168,7 +168,7 @@ The adapter must format that number afresh as lowercase hexadecimal without a
 The resolution path is:
 
 ```text
-CLEA WindowId
+Nycti WindowId
     |
     v
 private Hyprland identity mapping
@@ -345,7 +345,7 @@ find the same NativeStableId and verify focused == true
 
 ## `WindowId` lookup
 
-Before constructing a payload, the backend resolves the opaque CLEA `WindowId`
+Before constructing a payload, the backend resolves the opaque Nycti `WindowId`
 through the Hyprland adapter's private identity mapping:
 
 ```text
@@ -368,7 +368,7 @@ response, liveness is established by the post-action snapshot.
 
 For the first implementation, `UnknownWindow` arises only in these two cases:
 
-1. before dispatch, the CLEA `WindowId` is absent from the private mapping, so
+1. before dispatch, the Nycti `WindowId` is absent from the private mapping, so
    the backend returns `UnknownWindow(window_id)` without sending a request; or
 2. after an exact `b"ok"` response, the postcondition snapshot no longer
    contains the same `NativeStableId`, so the backend returns
@@ -380,11 +380,11 @@ even if its diagnostic text says that a window was not found.
 ## Dispatcher response semantics
 
 A `/dispatch` response is apparently accepted only when its complete bytes are
-exactly `b"ok"`. Even that response is not sufficient to report CLEA action
+exactly `b"ok"`. Even that response is not sufficient to report Nycti action
 success. Therefore:
 
 ```text
-response == b"ok" != CLEA postcondition success
+response == b"ok" != Nycti postcondition success
 ```
 
 The first implementation distinguishes these categories:
@@ -455,7 +455,7 @@ truth.
 
 Using the same stateful source ensures that:
 
-- a native stable ID that remains present retains its CLEA `WindowId`;
+- a native stable ID that remains present retains its Nycti `WindowId`;
 - newly observed addresses continue to update the private correlation state;
 - workspaces use the same normalization and identity allocation; and
 - action verification observes the same normalized placement and focus model
@@ -463,7 +463,7 @@ Using the same stateful source ensures that:
 
 The target is located internally by the same numeric native stable ID used to
 construct the request. This native comparison remains inside the adapter; the
-normalized observation exposed to the core still contains only the opaque CLEA
+normalized observation exposed to the core still contains only the opaque Nycti
 `WindowId`.
 
 If the snapshot transport fails, the operation returns
@@ -589,10 +589,10 @@ does not mean:
 
 - moving the window;
 - changing its workspace membership;
-- changing any CLEA workspace mode; or
+- changing any Nycti workspace mode; or
 - transferring mode state between workspaces.
 
-CLEA workspace mode remains owned by the workspace and is not modified by a
+Nycti workspace mode remains owned by the workspace and is not modified by a
 focus operation.
 
 ## Fullscreen relationship
@@ -630,7 +630,7 @@ Future automated tests must demonstrate at least that:
 4. the stable ID is formatted as lowercase hexadecimal without `0x`;
 5. no action payload uses `address:`;
 6. no action payload uses `toggle`;
-7. an unknown CLEA `WindowId` sends no compositor request;
+7. an unknown Nycti `WindowId` sends no compositor request;
 8. exact `b"ok"` followed by observed `Floating` returns `Ok(())` for
    `ensure_floating`;
 9. exact `b"ok"` followed by observed `Tiled` returns `Ok(())` for
@@ -716,7 +716,7 @@ This specification is satisfied by a future implementation when:
 1. the three `WindowBackend` operations use the exact canonical payloads in
    this document;
 2. action targets are derived only from private numeric `NativeStableId` values;
-3. unknown CLEA identities are rejected before transport;
+3. unknown Nycti identities are rejected before transport;
 4. only a complete response exactly equal to `b"ok"` permits one snapshot-based
    postcondition check;
 5. every other complete response maps directly to `ActionFailed` without a
@@ -727,7 +727,7 @@ This specification is satisfied by a future implementation when:
 8. placement actions remain declarative and never use toggle;
 9. `address:` is not used as an automatic action fallback;
 10. action verification reuses the existing stateful snapshot source;
-11. focus-induced workspace activation remains visible but does not alter CLEA
+11. focus-induced workspace activation remains visible but does not alter Nycti
     workspace modes or membership;
 12. no fullscreen command is emitted;
 13. the implementation has no runtime dependency on `hyprctl`; and

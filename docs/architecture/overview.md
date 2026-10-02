@@ -2,12 +2,12 @@
 
 ## Purpose
 
-CLEA is a modular desktop environment for Hyprland. The architecture separates
+Nycti is a modular desktop environment for Hyprland. The architecture separates
 presentation, user configuration, window-management policy, and system
 capabilities so that no visual client becomes the authority for the desktop.
 
 This document describes project-wide component boundaries. Languages,
-transports, and process models are not universal CLEA requirements; individual
+transports, and process models are not universal Nycti requirements; individual
 components may select them through component-specific architecture decisions.
 
 ## Components
@@ -51,11 +51,11 @@ Services / Window Management
 This diagram establishes responsibility, not a required runtime topology.
 
 For Window Management, [ADR 0005](adr/0005-window-management-runtime.md)
-selects an independent per-user `clea-windowd` process, initially implemented in
+selects an independent per-user `nycti-windowd` process, initially implemented in
 Rust, with a versioned JSON Lines client protocol over a Unix domain socket.
 Direct Hyprland integration remains isolated behind an internal backend
 interface. These are Window Management decisions, not requirements for other
-CLEA components; see the ADR for rationale, consequences, and deferred details.
+Nycti components; see the ADR for rationale, consequences, and deferred details.
 
 [Protocol v1](window-management-protocol-v1.md) specifies the client schema and
 `$XDG_RUNTIME_DIR/nycti/window-management.sock`. The
@@ -90,7 +90,7 @@ presentation clients to understand compositor-specific commands.
 
 ## Upstream strategy
 
-Caelestia is the primary shell upstream. CLEA should retain a clear relationship
+Caelestia is the primary shell upstream. Nycti should retain a clear relationship
 to it rather than combining multiple shells wholesale. Midnight Shell is a
 secondary source of ideas and selectively portable features only; each adopted
 feature requires its own architectural review, documentation, and tests.
@@ -103,7 +103,7 @@ choices remain deferred until requirements justify them:
 - implementation languages for components other than the Window Management
   daemon;
 - IPC transports and process topology for services other than Window Management;
-- persistence and operational resource limits for `clea-windowd`;
+- persistence and operational resource limits for `nycti-windowd`;
 - event-driven reconciliation and notification contracts for Window Management;
 - startup and supervision mechanisms, including any systemd user service;
 - whether D-Bus will be added as a future Window Management adapter or used by

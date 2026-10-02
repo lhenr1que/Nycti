@@ -1,6 +1,6 @@
 # Window Management
 
-Window Management owns CLEA's window-management policy boundary, including the
+Window Management owns Nycti's window-management policy boundary, including the
 interfaces and backend boundary for interaction with Hyprland. Presentation
 components do not implement this policy directly.
 
@@ -9,7 +9,7 @@ keeping fullscreen applications fullscreen during ordinary desktop mode
 changes, and for allowing the compositor integration to be replaced without
 coupling clients to it.
 
-The initial `clea-windowd` implementation uses Rust, as established by
+The initial `nycti-windowd` implementation uses Rust, as established by
 [ADR 0005](../docs/architecture/adr/0005-window-management-runtime.md).
 
 From this directory, validate the package with:
@@ -36,7 +36,7 @@ The multi-client execution model is selected by
 and refined by [ADR 0007](../docs/architecture/adr/0007-window-management-daemon-coordinator.md)
 (coordinator) and [ADR 0008](../docs/architecture/adr/0008-window-management-daemon-signals.md)
 (signals), both Accepted. The library implements the service authority,
-the connection workers, and the coordinator. `clea-windowd` is a functional
+the connection workers, and the coordinator. `nycti-windowd` is a functional
 executable: it binds the service socket, starts the coordinator, and stops on
 `SIGTERM` or `SIGINT`. Its automated tests run it only against a fake Hyprland;
 the maintainer validated it manually on a real Hyprland session on 2026-09-30. Shell,

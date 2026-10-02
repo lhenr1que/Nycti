@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document defines the first conceptual contract between the CLEA Window
+This document defines the first conceptual contract between the Nycti Window
 Management core and compositor backends. It is compositor-independent and is
 intended to guide a future Rust trait, a Hyprland backend, and a fake backend for
 tests without defining their concrete APIs yet.
@@ -37,7 +37,7 @@ backend contract
  +-- FakeBackend
 ```
 
-The core depends only on normalized CLEA concepts. It does not know about
+The core depends only on normalized Nycti concepts. It does not know about
 Hyprland sockets, `hyprctl`, dispatchers, event names, compositor addresses, or
 wire formats. Those details stop at a concrete backend.
 
@@ -50,7 +50,7 @@ workspace references at the backend boundary.
 
 Core consumers must not construct a `WorkspaceId` from a workspace name,
 numeric index, Hyprland address, or another compositor-specific value. The
-concrete backend maps its internal workspace identity to an opaque CLEA
+concrete backend maps its internal workspace identity to an opaque Nycti
 identity.
 
 ### `WindowId`
@@ -61,7 +61,7 @@ requests at the backend boundary.
 Core consumers must not construct a `WindowId` from a Hyprland address, PID,
 window title, application class, or another item of compositor or application
 metadata. The concrete backend maps its internal window identity to an opaque
-CLEA identity.
+Nycti identity.
 
 The concrete representation and lifetime rules for both identity types are
 outside this contract. This document does not select strings, integers, UUIDs,
@@ -69,7 +69,7 @@ or Rust types for them.
 
 ## Observed state
 
-Backend observations report facts from the compositor. They do not contain CLEA
+Backend observations report facts from the compositor. They do not contain Nycti
 policy decisions.
 
 ### Workspace observation
@@ -80,7 +80,7 @@ For every workspace known at the boundary, the core must be able to observe:
 - whether the workspace is currently present.
 
 Workspace mode is deliberately absent. Default, explicit, and effective
-workspace modes are CLEA-owned policy and are not compositor state.
+workspace modes are Nycti-owned policy and are not compositor state.
 
 This contract does not define how long a backend retains the identity or
 observation of a workspace that is no longer present.
@@ -208,7 +208,7 @@ Those decisions require the concrete API and runtime requirements.
 ## Future event capability
 
 A compositor backend will eventually need to provide relevant state changes to
-the core so that CLEA can react to new windows, changed state, focus changes,
+the core so that Nycti can react to new windows, changed state, focus changes,
 and workspace membership changes.
 
 This contract does not define an event API. Event format, streaming model,
