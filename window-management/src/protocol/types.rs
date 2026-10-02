@@ -1,4 +1,6 @@
-use serde::Serialize;
+use std::borrow::Cow;
+
+use serde::{Deserialize, Serialize};
 
 use crate::core::{WindowPlacement, WorkspaceMode};
 
@@ -49,7 +51,7 @@ pub enum RequestMethod {
 }
 
 /// A workspace mode as represented on the wire.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProtocolMode {
     Tiling,
@@ -75,7 +77,7 @@ impl From<WorkspaceMode> for ProtocolMode {
 }
 
 /// A window placement as represented on the wire.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProtocolPlacement {
     Tiled,
@@ -92,7 +94,7 @@ impl From<WindowPlacement> for ProtocolPlacement {
 }
 
 /// The stable protocol error vocabulary.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     InvalidRequest,
@@ -109,7 +111,7 @@ pub enum ErrorCode {
 }
 
 /// A compositor-independent public protocol error.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProtocolError {
     code: ErrorCode,
     message: String,
@@ -217,23 +219,23 @@ pub enum ProtocolResult {
     Windows(WindowsResult),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StatusResult {
     pub(crate) protocol_version: u64,
-    pub(crate) service: &'static str,
+    pub(crate) service: Cow<'static, str>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModeResult {
     pub(crate) mode: ProtocolMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspacesResult {
     pub(crate) workspaces: Vec<WorkspaceResult>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceResult {
     pub(crate) workspace_id: String,
     pub(crate) present: bool,
@@ -242,7 +244,7 @@ pub struct WorkspaceResult {
     pub(crate) effective_mode: ProtocolMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceModeResult {
     pub(crate) workspace_id: String,
     pub(crate) default_mode: ProtocolMode,
@@ -250,18 +252,18 @@ pub struct WorkspaceModeResult {
     pub(crate) effective_mode: ProtocolMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppliedWorkspaceModeResult {
     pub(crate) workspace_id: String,
     pub(crate) effective_mode: ProtocolMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WindowsResult {
     pub(crate) windows: Vec<WindowResult>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WindowResult {
     pub(crate) window_id: String,
     pub(crate) workspace_id: String,

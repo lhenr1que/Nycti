@@ -64,7 +64,7 @@ impl<B: WindowBackend> WindowManagementService<B> {
         match method {
             RequestMethod::Status => Ok(ProtocolResult::Status(StatusResult {
                 protocol_version: PROTOCOL_VERSION,
-                service: "nycti-windowd",
+                service: "nycti-windowd".into(),
             })),
             RequestMethod::GetDefaultMode => Ok(ProtocolResult::Mode(ModeResult {
                 mode: self.manager.default_mode().into(),
