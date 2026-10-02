@@ -1,4 +1,4 @@
-//! Stateful normalization from Hyprland wire responses to CLEA observations.
+//! Stateful normalization from Hyprland wire responses to Nycti observations.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;

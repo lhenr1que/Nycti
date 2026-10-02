@@ -1,4 +1,4 @@
-//! Daemon execution pieces for CLEA Window Management.
+//! Daemon execution pieces for Nycti Window Management.
 //!
 //! This contains the single service authority, the per-connection workers, and
 //! the coordinator that runs the accept loop and the shutdown sequence. They are

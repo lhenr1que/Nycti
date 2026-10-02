@@ -218,14 +218,14 @@ mod tests {
     #[test]
     fn socket_path_is_derived_from_runtime_values() {
         let path = socket_path_from_values(
-            Some(OsStr::new("/tmp/clea-runtime")),
+            Some(OsStr::new("/tmp/nycti-runtime")),
             Some(OsStr::new("fixture-instance")),
         )
         .expect("valid components should produce a path");
 
         assert_eq!(
             path,
-            PathBuf::from("/tmp/clea-runtime/hypr/fixture-instance/.socket.sock")
+            PathBuf::from("/tmp/nycti-runtime/hypr/fixture-instance/.socket.sock")
         );
     }
 
@@ -240,7 +240,7 @@ mod tests {
     #[test]
     fn missing_instance_signature_is_compositor_unavailable() {
         assert_eq!(
-            socket_path_from_values(Some(OsStr::new("/tmp/clea-runtime")), None),
+            socket_path_from_values(Some(OsStr::new("/tmp/nycti-runtime")), None),
             Err(BackendError::CompositorUnavailable)
         );
     }
@@ -250,10 +250,10 @@ mod tests {
         for (runtime_dir, signature) in [
             ("", "fixture-instance"),
             ("relative", "fixture-instance"),
-            ("/tmp/clea\0runtime", "fixture-instance"),
-            ("/tmp/clea-runtime", ""),
-            ("/tmp/clea-runtime", "../other-instance"),
-            ("/tmp/clea-runtime", "fixture\0instance"),
+            ("/tmp/nycti\0runtime", "fixture-instance"),
+            ("/tmp/nycti-runtime", ""),
+            ("/tmp/nycti-runtime", "../other-instance"),
+            ("/tmp/nycti-runtime", "fixture\0instance"),
         ] {
             assert_eq!(
                 socket_path_from_values(Some(OsStr::new(runtime_dir)), Some(OsStr::new(signature))),

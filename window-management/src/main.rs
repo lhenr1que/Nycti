@@ -1,12 +1,12 @@
-//! The `clea-windowd` executable. It stays thin: the startup, coordinator, and
-//! exit-code logic lives in the library (`clea_windowd::daemon`).
+//! The `nycti-windowd` executable. It stays thin: the startup, coordinator, and
+//! exit-code logic lives in the library (`nycti_windowd::daemon`).
 
 mod signals;
 
 use std::io;
 use std::process::ExitCode;
 
-use clea_windowd::daemon::{self, EXIT_STARTUP_FAILED};
+use nycti_windowd::daemon::{self, EXIT_STARTUP_FAILED};
 
 fn main() -> ExitCode {
     // Signals are registered before anything is bound, so a signal during
@@ -14,7 +14,7 @@ fn main() -> ExitCode {
     let source = match signals::SignalSource::register() {
         Ok(source) => source,
         Err(error) => {
-            eprintln!("clea-windowd: error: cannot register the signal handlers: {error}");
+            eprintln!("nycti-windowd: error: cannot register the signal handlers: {error}");
             return ExitCode::from(EXIT_STARTUP_FAILED);
         }
     };

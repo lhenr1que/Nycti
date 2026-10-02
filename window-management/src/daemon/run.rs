@@ -67,16 +67,16 @@ where
     while source.wait().is_some() {
         seen += 1;
         if seen == 1 {
-            let _ = writeln!(diag, "clea-windowd: shutdown requested");
+            let _ = writeln!(diag, "nycti-windowd: shutdown requested");
             if request() == Err(ShutdownError::WakeFailed) {
                 let _ = writeln!(
                     diag,
-                    "clea-windowd: warning: the accept loop could not be woken; \
+                    "nycti-windowd: warning: the accept loop could not be woken; \
                      it stops when the next client connects"
                 );
             }
         } else {
-            let _ = writeln!(diag, "clea-windowd: second signal, forcing exit");
+            let _ = writeln!(diag, "nycti-windowd: second signal, forcing exit");
             force_exit(EXIT_FORCED);
             return;
         }
@@ -127,17 +127,17 @@ pub fn write_report(report: &CoordinatorReport, out: &mut dyn Write) {
         Err(error) => format!("failed ({error})"),
     };
 
-    let _ = writeln!(out, "clea-windowd: stopped: {reason}");
+    let _ = writeln!(out, "nycti-windowd: stopped: {reason}");
     let _ = writeln!(
         out,
-        "clea-windowd: workers: completed={} failed={} panicked={} refused={}",
+        "nycti-windowd: workers: completed={} failed={} panicked={} refused={}",
         report.workers_completed,
         report.workers_failed,
         report.workers_panicked,
         report.connections_refused
     );
-    let _ = writeln!(out, "clea-windowd: authority: {authority}");
-    let _ = writeln!(out, "clea-windowd: listener cleanup: {cleanup}");
+    let _ = writeln!(out, "nycti-windowd: authority: {authority}");
+    let _ = writeln!(out, "nycti-windowd: listener cleanup: {cleanup}");
 }
 
 /// Runs the daemon for the current user session and returns its exit code.
@@ -163,7 +163,7 @@ where
         Err(error) => {
             let _ = writeln!(
                 diag,
-                "clea-windowd: error: cannot bind the service socket: {error}"
+                "nycti-windowd: error: cannot bind the service socket: {error}"
             );
             return startup_exit_code(&error);
         }
@@ -173,7 +173,7 @@ where
         Err(error) => {
             let _ = writeln!(
                 diag,
-                "clea-windowd: error: cannot use the Hyprland session: {error} \
+                "nycti-windowd: error: cannot use the Hyprland session: {error} \
                  (check XDG_RUNTIME_DIR and HYPRLAND_INSTANCE_SIGNATURE)"
             );
             return EXIT_STARTUP_FAILED;
@@ -214,18 +214,22 @@ where
         Err(error) => {
             let _ = writeln!(
                 diag,
-                "clea-windowd: error: cannot start the coordinator: {error}"
+                "nycti-windowd: error: cannot start the coordinator: {error}"
             );
             return EXIT_STARTUP_FAILED;
         }
     };
-    let _ = writeln!(diag, "clea-windowd: listening on {}", socket_path.display());
+    let _ = writeln!(
+        diag,
+        "nycti-windowd: listening on {}",
+        socket_path.display()
+    );
 
     let handle = coordinator.shutdown_handle();
     let fallback = handle.clone();
     let close_source = source.closer();
     let spawned = thread::Builder::new()
-        .name("clea-windowd-signals".to_owned())
+        .name("nycti-windowd-signals".to_owned())
         .spawn(move || {
             signal_loop(
                 source,
@@ -237,7 +241,7 @@ where
     let signal_thread = match spawned {
         Ok(thread) => thread,
         Err(_) => {
-            let _ = writeln!(diag, "clea-windowd: error: cannot start the signal thread");
+            let _ = writeln!(diag, "nycti-windowd: error: cannot start the signal thread");
             let _ = fallback.request_shutdown();
             let _ = coordinator.wait();
             return EXIT_STARTUP_FAILED;
@@ -256,7 +260,7 @@ where
         Err(error) => {
             let _ = writeln!(
                 diag,
-                "clea-windowd: error: {error}; the workers and the authority are left running"
+                "nycti-windowd: error: {error}; the workers and the authority are left running"
             );
             EXIT_PANICKED
         }
@@ -581,8 +585,8 @@ mod tests {
             assert_eq!(
                 lines,
                 vec![
-                    "clea-windowd: shutdown requested".to_owned(),
-                    "clea-windowd: second signal, forcing exit".to_owned(),
+                    "nycti-windowd: shutdown requested".to_owned(),
+                    "nycti-windowd: second signal, forcing exit".to_owned(),
                 ]
             );
         });
@@ -614,7 +618,7 @@ mod tests {
 
             let lines = Lines::new(diag_receiver).remaining();
             assert_eq!(lines.len(), 2);
-            assert_eq!(lines[0], "clea-windowd: shutdown requested");
+            assert_eq!(lines[0], "nycti-windowd: shutdown requested");
             assert!(lines[1].contains("warning: the accept loop could not be woken"));
         });
     }

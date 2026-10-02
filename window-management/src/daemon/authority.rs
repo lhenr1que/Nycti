@@ -149,7 +149,7 @@ impl Authority {
     {
         let (calls, receiver) = mpsc::sync_channel(0);
         let thread = thread::Builder::new()
-            .name("clea-windowd-authority".to_owned())
+            .name("nycti-windowd-authority".to_owned())
             .spawn(move || {
                 let _exit = ExitGuard(hook);
                 run_authority(service, receiver);

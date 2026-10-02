@@ -1,4 +1,4 @@
-//! Process runtime adapters for CLEA Window Management.
+//! Process runtime adapters for Nycti Window Management.
 
 mod unix;
 

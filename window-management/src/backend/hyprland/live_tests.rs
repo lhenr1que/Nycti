@@ -35,7 +35,7 @@ fn live_read_only_snapshot_smoke_test() {
 
     assert!(focused_count <= 1);
 
-    println!("CLEA Hyprland read-only smoke test:");
+    println!("Nycti Hyprland read-only smoke test:");
     println!("workspaces: {}", snapshot.workspaces.len());
     println!("windows: {}", snapshot.windows.len());
     println!("focused windows: {focused_count}");

@@ -1,4 +1,4 @@
-//! Typed parsing and serialization for CLEA Window Management Protocol v1.
+//! Typed parsing and serialization for Nycti Window Management Protocol v1.
 
 mod parser;
 mod types;

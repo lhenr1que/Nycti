@@ -208,7 +208,7 @@ impl Coordinator {
         .map_err(CoordinatorError::AuthorityStartFailed)?;
 
         let thread = thread::Builder::new()
-            .name("clea-windowd-accept".to_owned())
+            .name("nycti-windowd-accept".to_owned())
             .spawn(move || run_coordinator(listener, authority, receiver))
             .map_err(|_| CoordinatorError::SpawnFailed)?;
 

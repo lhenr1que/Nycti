@@ -174,7 +174,7 @@ impl TestDirectory {
     pub(super) fn new() -> Self {
         let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
         let path = env::temp_dir().join(format!(
-            "clea-windowd-daemon-test-{}-{sequence}",
+            "nycti-windowd-daemon-test-{}-{sequence}",
             std::process::id()
         ));
         let mut builder = DirBuilder::new();

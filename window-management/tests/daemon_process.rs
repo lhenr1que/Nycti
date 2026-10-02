@@ -1,4 +1,4 @@
-//! Process-level tests for the `clea-windowd` binary.
+//! Process-level tests for the `nycti-windowd` binary.
 //!
 //! The daemon runs as a child process with a cleared environment, a private
 //! runtime directory, and a fake Hyprland socket that serves the recorded
@@ -43,7 +43,7 @@ impl TestDirectory {
     fn new(mode: u32) -> Self {
         let sequence = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
         let path = env::temp_dir().join(format!(
-            "clea-windowd-process-test-{}-{sequence}",
+            "nycti-windowd-process-test-{}-{sequence}",
             std::process::id()
         ));
         let mut builder = DirBuilder::new();
@@ -118,7 +118,7 @@ impl Daemon {
     /// Starts the daemon with a cleared environment. Without `signature`, no
     /// Hyprland session variable is set.
     fn spawn(runtime: &Path, signature: Option<&str>) -> Self {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_clea-windowd"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_nycti-windowd"));
         command
             .env_clear()
             .env("XDG_RUNTIME_DIR", runtime)

@@ -6,7 +6,7 @@
 
 use std::io;
 
-use clea_windowd::daemon::ShutdownSource;
+use nycti_windowd::daemon::ShutdownSource;
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::{Handle, Signals};
 

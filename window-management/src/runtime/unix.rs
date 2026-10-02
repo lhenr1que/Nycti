@@ -468,7 +468,7 @@ mod tests {
         fn new() -> Self {
             let sequence = NEXT_TEST_DIRECTORY.fetch_add(1, Ordering::Relaxed);
             let path = env::temp_dir().join(format!(
-                "clea-windowd-runtime-test-{}-{sequence}",
+                "nycti-windowd-runtime-test-{}-{sequence}",
                 std::process::id()
             ));
             let mut builder = DirBuilder::new();

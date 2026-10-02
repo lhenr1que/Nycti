@@ -684,7 +684,7 @@ mod tests {
             );
         }
 
-        println!("CLEA WindowManager live smoke test:");
+        println!("Nycti WindowManager live smoke test:");
         println!("initial mode: Tiling");
         println!("temporary mode: Windows");
         println!("restored mode: Tiling");

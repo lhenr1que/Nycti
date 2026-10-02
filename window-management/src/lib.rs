@@ -1,4 +1,4 @@
-//! Core library for CLEA Window Management.
+//! Core library for Nycti Window Management.
 
 pub mod backend;
 pub mod core;

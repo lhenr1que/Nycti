@@ -151,7 +151,7 @@ where
             .map_err(|_| WorkerLifecycleError::ControlHandleFailed)?,
     );
     let thread = thread::Builder::new()
-        .name("clea-windowd-worker".to_owned())
+        .name("nycti-windowd-worker".to_owned())
         .spawn(move || run_worker(stream, guard, handler))
         .map_err(|_| WorkerLifecycleError::SpawnFailed)?;
 
