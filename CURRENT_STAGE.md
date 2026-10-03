@@ -336,6 +336,9 @@ on 2026-09-30, and ADR 0007 and ADR 0008 are Accepted. The open items are listed
 under Not implemented and Known risks and limitations. The next implementation
 step must be planned and authorized before it starts.
 
+The Nycti visual concept and UX document is
+[docs/design/visual-concept.md](docs/design/visual-concept.md), with status Proposed.
+
 ## Known risks and limitations
 
 - Snapshot normalization requires a correlatable active window; the no-active
