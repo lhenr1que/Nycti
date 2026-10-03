@@ -19,7 +19,7 @@ timing) belong to a future design system and are not set here.
 
 | # | Decision | Status |
 | --- | --- | --- |
-| D1 | One persistent vertical sidebar on the left. No top bar and no dock. | Decided |
+| D1 | One vertical sidebar on the left. No top bar and no dock. It is always visible by default. The user can configure it to appear only when the pointer rests on the left edge. | Decided |
 | D2 | The taskbar is a module of the sidebar. There is no horizontal taskbar. | Decided |
 | D3 | Each workspace keeps its own mode: Window Mode or Tiling Mode. | Decided |
 | D4 | Caelestia is a structural and behavioral reference. Nycti has its own visual identity. Pieces of Caelestia may be copied, with origin recorded (section 14). | Decided |
@@ -32,8 +32,11 @@ timing) belong to a future design system and are not set here.
 | D11 | The title bar is implemented with Hyprbars or an equivalent, subject to an ADR. | Open |
 | D12 | In Window Mode every window has close, minimize and maximize/restore buttons in its title bar. | Decided |
 | D13 | Panels open when the pointer rests on their trigger, as in Caelestia, and always have a button or shortcut as an alternative. | Decided |
-| D14 | Volume, brightness and the quick toggles share one control panel on the right edge. | Decided |
+| D14 | The power button of the sidebar becomes a system menu button. It opens a panel anchored to the sidebar with the quick toggles and the session actions. Volume has its own icon in System Status, with its own panel. | Decided |
 | D15 | The Shell is written with Quickshell and QML, the stack Caelestia uses. | Proposed, needs ADR |
+| D16 | The logo in the sidebar is clickable and opens the launcher. | Decided |
+| D17 | A Displays icon in System Status opens a panel with one row per monitor. Each row has a brightness slider when that monitor supports it, and the panel links to Settings, section Displays. | Decided |
+| D18 | A thin Show Desktop strip at the bottom end of the sidebar hides all windows of the current workspace and, on a second click, restores the windows it hid. | Decided |
 
 ## 3. Visual direction
 
@@ -56,17 +59,24 @@ mode indicator and the Window Mode module.
 
 ```text
 Nycti Sidebar (left edge)
-+-- Identity / logo
++-- Identity / logo (opens the launcher)
 +-- Navigation (Home, Apps, Files)
 +-- Taskbar
 +-- Workspaces
 +-- Window Mode
 +-- System Status
++-- Show Desktop (thin strip at the bottom end)
 ```
 
-The order may change during prototypes. The sidebar is the only permanent
-component. Everything else (launcher, quick settings, notifications, calendar,
-network, volume, power) is a floating panel that appears when requested.
+The order may change during prototypes. The sidebar is the only component visible by default. Everything else (launcher, quick settings, notifications, calendar,
+network, volume, system menu) is a floating panel that appears when requested.
+
+Sidebar behavior. The user chooses between two modes in Settings, section Sidebar:
+
+- Always visible (default). The sidebar keeps its own space and windows do not cover it. Reserving space is a proposal.
+- Auto-hide. The sidebar appears when the pointer rests on the left edge and hides when the pointer leaves. It appears over the windows without moving them. The taskbar hides with it, so the launcher shortcut and Alt+Tab matter more in this mode.
+
+Auto-hide needs the edge to be a wall. If another monitor shares that edge, the pointer crosses it, so on that monitor the sidebar opens by shortcut.
 
 Fullscreen: the sidebar does not draw over a fullscreen window. Proposed, to be
 confirmed in the fullscreen screen.
@@ -175,6 +185,8 @@ a decoration of Nycti's own. Hyprbars is a Hyprland plugin tied to the composito
 version (Hyprland 0.56.2 is the current target), so using it needs an ADR on the
 dependency and on what happens when the plugin breaks.
 
+Show Desktop (D18). A thin, low-contrast strip at the bottom end of the sidebar, below the system menu button, hides every window of the current workspace and shows the desktop. A second click restores exactly the windows it hid, in their earlier state. It also has a keyboard shortcut, which matters when the sidebar is in auto-hide mode. It uses the same hiding mechanism as minimize, so it depends on the protocol extension for minimize and restore and on knowing the current workspace.
+
 ## 9. Floating panels and hover reveal
 
 Panels open when the pointer rests on their trigger, as in Caelestia (D13).
@@ -184,41 +196,33 @@ function depends on hover alone. Animation is a smooth reveal; durations belong
 to the design system.
 
 Panels and triggers, following the Caelestia screens used as reference, except
-for the control panel:
+for the system menu:
 
 | Panel | Trigger | Position |
 | --- | --- | --- |
 | Dashboard (clock, weather, calendar, media, performance) | Top edge | Top, centered |
-| Control panel (volume, brightness, quick toggles) | Right edge | Right edge |
-| Network, Bluetooth, volume details | Icon in System Status | Beside the sidebar |
+| System menu (quick toggles, session actions) | Menu button at the bottom of the sidebar | Anchored to the sidebar, over the work area |
+| Network, Bluetooth | Icon in System Status | Beside the sidebar |
+| Volume | Volume icon in System Status | Beside the sidebar |
+| Displays | Displays icon in System Status | Beside the sidebar |
 | Application menu or window list | Taskbar item | Beside the sidebar |
-| Session (logout, power, restart) | Power button in the sidebar | Right edge |
-| Launcher | Shortcut or Navigation button | Centered |
+| Launcher | Logo, shortcut or Navigation button | Centered |
 | Notifications | Badge in System Status | Beside the sidebar |
 
 A panel that opens from the top edge is not a top bar (D1). It exists only while
 it is shown.
 
-Control panel (D14). Caelestia places the quick toggles at the bottom right and
-the volume and brightness sliders in a strip at the right edge. Nycti joins them
-in one panel on the right edge: the two sliders and the quick toggles (keep
-awake, screen recording, Wi-Fi, Bluetooth, microphone, do not disturb, VPN,
-Game Mode). The session panel stays separate, opened from the power button, to
-avoid overloading the control panel.
+System menu (D14). The power button of the sidebar becomes a menu button with a different icon. It opens a panel anchored to the sidebar, which extends over the work area from the button. The sidebar keeps its width and no window is rearranged, because widening the sidebar would resize tiled windows every time the menu opens. The panel holds the quick toggles (keep awake, screen recording, Wi-Fi, Bluetooth, microphone, do not disturb, VPN, Game Mode) and the session actions (logout, lock, restart, shut down). Shut down, restart and logout ask for confirmation. The confirmation is a proposal.
 
-Multiple monitors. Three points decide how the control panel behaves:
+Volume. The volume icon in System Status opens its own panel with the slider, mute and output device selection. The output device selection is a proposal.
 
-- Volume is system-wide, so the slider is the same on every monitor.
-- Brightness belongs to one monitor. The slider acts on the monitor that shows
-  the panel (the one with the pointer or the focus). It appears only when that
-  monitor's brightness can be controlled. Laptop panels usually can; an external
-  monitor depends on hardware support (for example DDC/CI), to be checked on the
-  real devices. Otherwise the slider is hidden or disabled with a short
-  explanation.
-- Hover on an edge works only where the edge is a wall. In an extended layout the
-  pointer crosses an edge shared with a neighboring monitor instead of stopping
-  there. Edge triggers therefore apply to outer edges. On a shared edge the panel
-  opens by button or shortcut.
+Displays (D17). The Displays icon in System Status opens a panel with one row per monitor. Each row shows the monitor name and a brightness slider when that monitor's brightness can be controlled, and the panel links to Settings, section Displays. Brightness belongs to one monitor, so listing every monitor lets the user choose explicitly. Laptop panels usually can be adjusted; an external monitor depends on hardware support (for example DDC/CI), to be checked on the real devices. A monitor that cannot be adjusted shows its name with a short note instead of a slider.
+
+Multiple monitors. Three points decide how these panels behave:
+
+- Volume is system-wide, so the volume panel is the same on every monitor.
+- Brightness belongs to one monitor and is handled in the Displays panel, which lists every monitor.
+- Because these triggers live in the sidebar, the shared-edge problem does not affect them. It affects the auto-hide sidebar and the top-edge dashboard: the pointer crosses an edge shared with a neighboring monitor instead of stopping there, so on shared edges those panels open by shortcut.
 
 The Shell gets the list of monitors from the Wayland session. Protocol v1 has no
 monitor information.
@@ -233,6 +237,7 @@ documents do not place them.
 Search, applications, commands, files, system actions and keyboard navigation.
 Categories organize the list. The Apps view shows applications as a grid, as in
 the mockup. The launcher opens as a panel and follows the Nycti visual language.
+The logo opens the launcher. The Apps item in Navigation opens it on the Apps view.
 
 ## 11. Nycti Settings
 
@@ -298,6 +303,7 @@ What the Shell can do today and what it cannot:
 | Change events | No. The Shell would have to poll. |
 | Stable tokens across daemon restarts | No. Tokens are valid only while the daemon lives. |
 | Monitor layout and per-monitor data | No. The Shell reads monitors from the Wayland session. |
+| Show Desktop (hide and restore all windows of a workspace) | No. It needs minimize and restore and the current workspace. |
 
 Closing these gaps requires a new protocol version, with its own ADR.
 
@@ -382,4 +388,7 @@ urutau art in the mockup is not recorded yet, so it stays out until it is.
 - ADR for Hyprbars or an equivalent title bar.
 - ADR for how the Shell is built from Caelestia components (D9, D10). It must state how it amends ADR 0001.
 - GPL "only" or "or later", and the license of each visual asset.
+- Whether the Home item stays in Navigation, and what it would open.
+- What happens to a window opened while Show Desktop is active: restore everything, or keep the desktop shown.
+- Whether the Displays icon is shown when there is a single monitor whose brightness cannot be adjusted.
 - Animations, definitive palette, typography and iconography.
