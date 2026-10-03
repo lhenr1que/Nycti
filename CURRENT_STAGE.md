@@ -15,7 +15,7 @@
   remove the old `$XDG_RUNTIME_DIR/clea/` directory; remove it manually.
 - ADRs 0001 to 0008 and earlier commit subjects keep the old name.
 - The CLI is named `nycti`, as recorded in
-  [ADR 0010](docs/architecture/adr/0010-window-management-cli.md) (Proposed).
+  [ADR 0010](docs/architecture/adr/0010-window-management-cli.md) (Accepted).
   No trademark search was done for the name Nycti.
 - The test baseline did not change with the rename: **244 passed, 0 failed,
   3 ignored** at each rename commit; the ignored tests were not run.
@@ -132,7 +132,7 @@ the project; the project's tooling did not run it. Observed:
 
 Implemented on branch `feature/window-management-core` in seven local commits (not
 pushed at the time of writing) and described by
-[ADR 0010](docs/architecture/adr/0010-window-management-cli.md) (Proposed):
+[ADR 0010](docs/architecture/adr/0010-window-management-cli.md) (Accepted):
 
 - A second binary of the package `nycti-windowd` (`src/bin/nycti.rs`, thin) and
   the library module `client` (`wire`, `args`, `connection`, `output`, `run`).
@@ -167,13 +167,42 @@ pushed at the time of writing) and described by
   `client::connection`, two in `client::run`, one of them through `--timeout`) wait
   for a real short timeout (about 150 ms) and are time-dependent; they are
   protected by the guard limit.
-- Not validated: the effect of `apply-workspace-mode` through `nycti` on a real
-  Hyprland session. A manual script was prepared for the maintainer; it has not
-  been run.
+- Manual validation: see "Manual validation of the `nycti` CLI" below.
 - Not tested: the connect timeout with a full listener backlog, the race between
   the daemon closing the connection and answering, and `PermissionDenied` caused
   by a socket owned by another user. The permission-denied test simulates the
   case with a socket of mode 000 and does nothing when run by a privileged user.
+
+Manual validation of the `nycti` CLI: on 2026-10-03 the maintainer ran the manual
+script against the real `nycti-windowd` on a real Hyprland session, and every step
+gave the expected result. This was run by the maintainer and reported to the
+project; the project's tooling did not run it. Observed:
+
+- A release build with `--locked`. No daemon was running before the tests.
+- Without a daemon: `nycti --dry-run wm query status` printed the request and
+  exited with 0 without connecting; `nycti wm change apply-workspace-mode w:1`
+  without `--yes` was refused with exit code 2 and a message ending in "Nothing
+  was sent"; `nycti wm query status` exited with 3 (the socket does not exist).
+- With the daemon: `wm query status` (service `nycti-windowd`, `protocol_version`
+  1), `get-default-mode` (`tiling`), `list-workspaces`, `list-windows`, and
+  `--json wm query list-workspaces` exited with 0.
+- On a test workspace with two windows: `set-workspace-mode TOKEN windows` changed
+  only the policy (the windows stayed tiled); `apply-workspace-mode TOKEN`
+  without `--yes` exited with 2 and nothing changed; `apply-workspace-mode TOKEN
+  --yes` exited with 0 with the warning on standard error, and both windows became
+  floating; a sorted comparison of `list-windows` before and after showed changes
+  only in the two test windows (tiled to floating) and none in the windows of
+  other workspaces; `set-workspace-mode TOKEN tiling` followed by
+  `apply-workspace-mode TOKEN --yes` returned both windows to tiled;
+  `clear-workspace-mode TOKEN` left `explicit=none`.
+- Errors: the token `w:999` and other invalid tokens exited with 4 and
+  `unknown_workspace`; an `apply-workspace-mode --yes` with an invalid token
+  printed the warning and was refused by the daemon without changing any window.
+- Shutdown by `SIGTERM`, in two runs of the daemon: in the first, the report showed
+  workers completed=19 failed=0 panicked=0 refused=0, authority ok, and listener
+  cleanup ok, and `wm query status` then exited with 3; in the second (used to
+  repeat the apply in windows mode), the report showed workers completed=11
+  failed=0 panicked=0 refused=0, authority ok, and listener cleanup ok.
 
 Validated commands, run from the repository root:
 
