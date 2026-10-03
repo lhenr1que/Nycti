@@ -1,6 +1,6 @@
 # ADR 0010: Window Management CLI
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-01
 
 ## Context
@@ -12,7 +12,7 @@ open. [ADR 0009](0009-rename-project-to-nycti.md) renames the project and defers
 the CLI name to this ADR. The daemon `nycti-windowd` serves protocol v1 on a Unix
 socket (see the [protocol specification](../window-management-protocol-v1.md))
 and was validated manually against a real Hyprland session, so a first client can
-now exercise the protocol without a shell.
+now exercise the protocol without the Shell.
 
 The CLI is a client. It is never an authority: it does not decide policy, does
 not reach the compositor, and does not reproduce the planner. This ADR records
