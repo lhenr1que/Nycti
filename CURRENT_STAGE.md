@@ -337,7 +337,7 @@ under Not implemented and Known risks and limitations. The next implementation
 step must be planned and authorized before it starts.
 
 The Nycti visual concept and UX document is
-[docs/design/visual-concept.md](docs/design/visual-concept.md), with status Proposed.
+[docs/design/visual-concept.md](docs/design/visual-concept.md), with status Accepted.
 
 ## Known risks and limitations
 

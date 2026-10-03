@@ -1,6 +1,6 @@
 # Nycti Visual Concept and UX
 
-- Status: Proposed. Decisions are marked in the table below.
+- Status: Accepted. Rows marked Proposed in the table below still need their own ADR.
 - Date: 2026-10-03
 - Replaces: the Portuguese working version `nycti_visual_concept.md`
 
