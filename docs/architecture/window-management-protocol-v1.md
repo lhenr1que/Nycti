@@ -4,7 +4,7 @@
 
 This document specifies version 1 of the client protocol for `nycti-windowd`.
 The protocol is used by the Nycti Shell, Settings, and the `nycti` command-line
-client ([ADR 0010](adr/0010-window-management-cli.md), Proposed) to query and
+client ([ADR 0010](adr/0010-window-management-cli.md), Accepted) to query and
 change Window Management state without owning policy or communicating directly
 with a compositor.
 
