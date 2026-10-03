@@ -1,6 +1,6 @@
 # Nycti Visual Concept and UX
 
-- Status: Draft, decisions marked below
+- Status: Proposed. Decisions are marked in the table below.
 - Date: 2026-10-03
 - Replaces: the Portuguese working version `nycti_visual_concept.md`
 
@@ -27,7 +27,7 @@ timing) belong to a future design system and are not set here.
 | D6 | Themes: Light, Dark and Auto. Default pair is Ivory (light) and Night (dark). Sand is a light variant. Colors are direction only. | Decided |
 | D7 | The launcher is a searchable, keyboard-first list with categories. The grid seen in the mockup is the Apps view inside the launcher. | Decided |
 | D8 | The UI label "Window Mode" corresponds to the protocol token `windows`. No protocol change for this. | Decided |
-| D9 | Shell visual code is written in the Nycti tree, starting from selected Caelestia components, and is not a fork. | Proposed, needs ADR |
+| D9 | Shell visual code is written in the Nycti tree, starting from selected Caelestia components, and is not a fork. If accepted, it amends ADR 0001, which names Caelestia the primary upstream. | Proposed, needs ADR |
 | D10 | The Shell does not depend on `caelestia-cli`. It talks to the daemon (and to future Nycti tools) only. | Proposed, needs ADR |
 | D11 | The title bar is implemented with Hyprbars or an equivalent, subject to an ADR. | Open |
 | D12 | In Window Mode every window has close, minimize and maximize/restore buttons in its title bar. | Decided |
@@ -160,9 +160,9 @@ three buttons:
 | Maximize / Restore | Maximize fills the usable area (the sidebar stays visible). Restore returns the window to its earlier size and position. |
 | Minimize | Hides the window and keeps it in the taskbar as minimized. A click on the taskbar item restores it. |
 
-Hyprland has no minimize in the sense of a traditional desktop (as far as I
-know, the usual technique is to move the window to a special workspace). Nycti
-therefore has to define minimize and maximize/restore itself. The daemon owns
+Hyprland has no minimize in the sense of a traditional desktop. The usual
+technique is to move the window to a special workspace, which the ADR must
+confirm. Nycti therefore has to define minimize and maximize/restore itself. The daemon owns
 this state, because the Shell is a client and not an authority (ADR 0002). Protocol
 v1 has no such actions, so the buttons need a protocol extension and an ADR.
 
@@ -380,6 +380,6 @@ urutau art in the mockup is not recorded yet, so it stays out until it is.
 - How new windows are treated in a Window Mode workspace.
 - Atomic mode switch in the daemon.
 - ADR for Hyprbars or an equivalent title bar.
-- ADR for how the Shell is built from Caelestia components (D9, D10).
+- ADR for how the Shell is built from Caelestia components (D9, D10). It must state how it amends ADR 0001.
 - GPL "only" or "or later", and the license of each visual asset.
 - Animations, definitive palette, typography and iconography.
